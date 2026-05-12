@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#0a0a0a"/>
+
+  <!-- Outer glow -->
+  <circle cx="256" cy="276" r="160" fill="#ff6a00" opacity="0.08"/>
+
+  <!-- Flame body -->
+  <path
+    d="M256 96
+       C256 96 310 160 318 220
+       C326 280 300 296 300 296
+       C300 296 316 240 280 210
+       C280 210 290 270 260 300
+       C260 300 268 260 248 240
+       C248 240 252 272 230 296
+       C200 328 192 360 210 390
+       C224 412 248 424 256 424
+       C264 424 288 412 302 390
+       C320 360 312 328 282 296
+       C260 272 264 240 264 240
+       C244 260 252 300 252 300
+       C222 270 232 210 232 210
+       C196 240 212 296 212 296
+       C212 296 186 280 194 220
+       C202 160 256 96 256 96Z"
+    fill="url(#flameGrad)"
+  />
+
+  <!-- Inner highlight -->
+  <path
+    d="M256 180
+       C256 180 278 218 280 248
+       C282 272 268 284 268 284
+       C268 284 272 256 256 240
+       C240 256 244 284 244 284
+       C244 284 230 272 232 248
+       C234 218 256 180 256 180Z"
+    fill="#fff"
+    opacity="0.18"
+  />
+
+  <!-- "22" text -->
+  <text
+    x="256"
+    y="398"
+    text-anchor="middle"
+    font-family="Arial Black, sans-serif"
+    font-weight="900"
+    font-size="64"
+    fill="#ff6a00"
+    letter-spacing="-2"
+  >22</text>
+
+  <defs>
+    <linearGradient id="flameGrad" x1="256" y1="96" x2="256" y2="424" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="40%" stop-color="#ff6a00"/>
+      <stop offset="100%" stop-color="#ee0979"/>
+    </linearGradient>
+  </defs>
+</svg>

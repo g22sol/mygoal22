@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate MyGoal22 Icons</title></head>
+<body style="background:#111;display:flex;gap:24px;padding:24px;flex-wrap:wrap;">
+
+<div>
+  <p style="color:white;font-family:sans-serif;margin-bottom:8px;">192×192 — right-click → Save image as → icon-192.png</p>
+  <canvas id="c192" width="192" height="192"></canvas>
+</div>
+
+<div>
+  <p style="color:white;font-family:sans-serif;margin-bottom:8px;">512×512 — right-click → Save image as → icon-512.png</p>
+  <canvas id="c512" width="512" height="512"></canvas>
+</div>
+
+<script>
+function drawIcon(canvas) {
+  const s = canvas.width;
+  const ctx = canvas.getContext("2d");
+  const r = s * 0.2;
+
+  // Rounded rect background
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(s - r, 0);
+  ctx.quadraticCurveTo(s, 0, s, r);
+  ctx.lineTo(s, s - r);
+  ctx.quadraticCurveTo(s, s, s - r, s);
+  ctx.lineTo(r, s);
+  ctx.quadraticCurveTo(0, s, 0, s - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fillStyle = "#0a0a0a";
+  ctx.fill();
+
+  // Flame gradient
+  const grad = ctx.createLinearGradient(s * 0.5, s * 0.15, s * 0.5, s * 0.82);
+  grad.addColorStop(0, "#ffb347");
+  grad.addColorStop(0.4, "#ff6a00");
+  grad.addColorStop(1, "#ee0979");
+
+  // Draw flame as scaled path
+  const sc = s / 512;
+  ctx.save();
+  ctx.scale(sc, sc);
+
+  ctx.beginPath();
+  ctx.moveTo(256, 96);
+  ctx.bezierCurveTo(256, 96, 310, 160, 318, 220);
+  ctx.bezierCurveTo(326, 280, 300, 296, 300, 296);
+  ctx.bezierCurveTo(300, 296, 316, 240, 280, 210);
+  ctx.bezierCurveTo(280, 210, 290, 270, 260, 300);
+  ctx.bezierCurveTo(260, 300, 268, 260, 248, 240);
+  ctx.bezierCurveTo(248, 240, 252, 272, 230, 296);
+  ctx.bezierCurveTo(200, 328, 192, 360, 210, 390);
+  ctx.bezierCurveTo(224, 412, 248, 424, 256, 424);
+  ctx.bezierCurveTo(264, 424, 288, 412, 302, 390);
+  ctx.bezierCurveTo(320, 360, 312, 328, 282, 296);
+  ctx.bezierCurveTo(260, 272, 264, 240, 264, 240);
+  ctx.bezierCurveTo(244, 260, 252, 300, 252, 300);
+  ctx.bezierCurveTo(222, 270, 232, 210, 232, 210);
+  ctx.bezierCurveTo(196, 240, 212, 296, 212, 296);
+  ctx.bezierCurveTo(212, 296, 186, 280, 194, 220);
+  ctx.bezierCurveTo(202, 160, 256, 96, 256, 96);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // "22" text
+  ctx.font = "900 64px 'Arial Black', Arial, sans-serif";
+  ctx.fillStyle = "#ff6a00";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("22", 256, 398);
+
+  ctx.restore();
+}
+
+drawIcon(document.getElementById("c192"));
+drawIcon(document.getElementById("c512"));
+</script>
+</body>
+</html>
