@@ -13,6 +13,7 @@ import {
   Timer,
   Gauge,
   RotateCcw,
+  LogOut,                          // ← add
 } from "lucide-react";
 import type { ExerciseTemplate, SavedSession, SprintEntry, ViewName } from "../types";
 import { WEEK_SCHEDULE } from "../constants";
@@ -27,6 +28,7 @@ type Props = {
   onOpenTemplate: () => void;
   onTouchesComplete: () => void;
   onNavigate: (v: ViewName) => void;
+  onLogout: () => void;            // ← add
 };
 
 const SPRINT_METRIC_DEFS = [
@@ -45,11 +47,12 @@ export default function Dashboard({
   onOpenTemplate,
   onTouchesComplete,
   onNavigate,
+  onLogout,                        // ← add
 }: Props) {
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
 
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="px-5 pt-10 pb-5 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -64,12 +67,23 @@ export default function Dashboard({
             Elite Performance System
           </p>
         </div>
-        <div className="w-9 h-9 rounded-full bg-[#ff6a00] flex items-center justify-center font-bold text-sm">
-          KH
+
+        {/* Avatar + logout */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onLogout}
+            className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all"
+            title="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5 text-neutral-400" />
+          </button>
+          <div className="w-9 h-9 rounded-full bg-[#ff6a00] flex items-center justify-center font-bold text-sm">
+            KH
+          </div>
         </div>
       </header>
 
-      {/* Greeting */}
+      {/* ── Greeting ── */}
       <section className="px-5 mb-5">
         <div className="flex items-center gap-2 text-[#ff6a00] text-xs font-bold uppercase tracking-widest">
           <Activity className="w-4 h-4" />
@@ -80,7 +94,7 @@ export default function Dashboard({
         </h2>
       </section>
 
-      {/* Today's Training */}
+      {/* ── Today's Training ── */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
         <div className="p-5">
@@ -132,7 +146,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* Last Session */}
+      {/* ── Last Session ── */}
       {lastSession && (
         <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 to-transparent" />
@@ -181,7 +195,7 @@ export default function Dashboard({
         </section>
       )}
 
-      {/* 10K Touches */}
+      {/* ── 10K Touches ── */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ee0979] via-[#ff6a00] to-transparent" />
         <div className="p-5">
@@ -227,7 +241,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* Sprint Metrics */}
+      {/* ── Sprint Metrics ── */}
       <section className="mx-5 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-black uppercase tracking-widest">Sprint Metrics</h3>
@@ -271,7 +285,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* Weekly Schedule */}
+      {/* ── Weekly Schedule ── */}
       <section className="mx-5 mb-6">
         <h3 className="text-sm font-black uppercase tracking-widest mb-3">
           Weekly Schedule
