@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type {
-  Exercise,
   ExerciseTemplate,
+  SavedExercise,
   SavedSession,
   SprintEntry,
   ViewName,
@@ -41,7 +41,6 @@ export default function Page() {
   const [view, setView] = useState<ViewName>("dashboard");
   const [touchesComplete, setTouchesComplete] = useState(false);
   const [template, setTemplate] = useState<ExerciseTemplate[]>(DEFAULT_TEMPLATE);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [history, setHistory] = useState<SavedSession[]>([]);
   const [sprints, setSprints] = useState<SprintEntry[]>([]);
   const [draft, setDraft] = useState<ExerciseTemplate[]>([]);
@@ -98,36 +97,15 @@ export default function Page() {
   };
 
   const handleStartSession = () => {
-    setExercises(template.map((e) => ({ ...e, weight: "", completed: false })));
     setView("session");
   };
 
-  const handleWeightChange = (id: number, value: string) =>
-    setExercises((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, weight: value } : e))
-    );
-
-  const handleUseSuggested = (id: number, suggested: string) =>
-    setExercises((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, weight: suggested } : e))
-    );
-
-  const handleCompleteExercise = (id: number) =>
-    setExercises((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, completed: true } : e))
-    );
-
-  const handleFinishSession = async () => {
+  const handleFinishSession = async (savedExercises: SavedExercise[]) => {
     const s: SavedSession = {
       id: `${Date.now()}`,
       date: new Date().toISOString(),
       title: "Acceleration + Lowers",
-      exercises: exercises.map(({ name, sets, reps, weight }) => ({
-        name,
-        sets,
-        reps,
-        weight,
-      })),
+      exercises: savedExercises,
     };
 
     const updated = await saveSession(s, history);
@@ -219,12 +197,9 @@ export default function Page() {
       case "session":
         return (
           <WorkoutSession
-            exercises={exercises}
+            template={template}
             lastSession={lastSession}
             onBack={() => setView("dashboard")}
-            onWeightChange={handleWeightChange}
-            onUseSuggested={handleUseSuggested}
-            onCompleteExercise={handleCompleteExercise}
             onFinishSession={handleFinishSession}
           />
         );

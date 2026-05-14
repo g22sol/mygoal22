@@ -1,11 +1,3 @@
-export type ViewName =
-  | "dashboard"
-  | "session"
-  | "history"
-  | "template"
-  | "sprint"
-  | "progress";
-
 export type ExerciseTemplate = {
   id: number;
   name: string;
@@ -18,11 +10,22 @@ export type Exercise = ExerciseTemplate & {
   completed: boolean;
 };
 
+// ── NEW: one row per set ─────────────────────────────────────────────────────
+export type SetLog = {
+  setNumber: number;
+  weight: string;
+  reps: string;
+  completed: boolean;
+};
+
+// Updated: exercises now carry per-set data.
+// `weight` kept as optional string for backwards compat with old sessions.
 export type SavedExercise = {
   name: string;
   sets: number;
   reps: number;
-  weight?: string;
+  weight?: string;       // legacy — single weight from old sessions
+  setLogs?: SetLog[];    // new — per-set data
 };
 
 export type SavedSession = {
@@ -30,20 +33,6 @@ export type SavedSession = {
   date: string;
   title: string;
   exercises: SavedExercise[];
-};
-
-export type SprintField = {
-  key:
-    | "topSpeed"
-    | "time10m"
-    | "time40yard"
-    | "time60m"
-    | "curvedRun"
-    | "onBallSpeed"
-    | "offBallSpeed";
-  label: string;
-  unit: string;
-  icon: React.ElementType;
 };
 
 export type SprintEntry = {
@@ -59,7 +48,22 @@ export type SprintEntry = {
   notes: string;
 };
 
+export type SprintField = {
+  key: keyof Omit<SprintEntry, "id" | "date" | "notes">;
+  label: string;
+  unit: string;
+  icon: React.ElementType;
+};
+
 export type ChartPoint = {
   label: string;
   value: number;
 };
+
+export type ViewName =
+  | "dashboard"
+  | "session"
+  | "template"
+  | "history"
+  | "sprint"
+  | "progress";

@@ -10,10 +10,11 @@ import {
   Play,
   Trash2,
   TrendingUp,
+  Check,
 } from "lucide-react";
 import { useState } from "react";
 import type { SavedSession } from "../types";
-import { formatDate } from "../lib/utils";
+import { formatDate, getBestWeight } from "../lib/utils";
 
 type Props = {
   history: SavedSession[];
@@ -29,7 +30,11 @@ export default function WorkoutHistory({
   onStartSession,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedEx, setExpandedEx] = useState<string | null>(null);
   const sorted = [...history].reverse();
+
+  const toggleEx = (key: string) =>
+    setExpandedEx((prev) => (prev === key ? null : key));
 
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
@@ -75,9 +80,23 @@ export default function WorkoutHistory({
         <div className="px-5 flex flex-col gap-3">
           {sorted.map((session, index) => {
             const isExpanded = expanded === session.id;
-            const totalWeight = session.exercises
-              .filter((e) => e.weight)
-              .reduce((sum, e) => sum + parseFloat(e.weight || "0") * e.sets, 0);
+            const totalVolume = session.exercises.reduce((sum, ex) => {
+              if (ex.setLogs) {
+                return (
+                  sum +
+                  ex.setLogs
+                    .filter((s) => s.completed && s.weight !== "")
+                    .reduce(
+                      (s, set) =>
+                        s + (parseFloat(set.weight) || 0) * (parseInt(set.reps) || 0),
+                      0
+                    )
+                );
+              }
+              // legacy
+              const w = parseFloat(ex.weight ?? "");
+              return sum + (isNaN(w) ? 0 : w * ex.sets * ex.reps);
+            }, 0);
 
             return (
               <div
@@ -111,6 +130,7 @@ export default function WorkoutHistory({
                     </button>
                   </div>
 
+                  {/* Stats */}
                   <div className="flex items-center gap-3 mb-3">
                     <div className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2.5 py-1.5">
                       <Dumbbell className="w-3 h-3 text-neutral-500" />
@@ -118,11 +138,11 @@ export default function WorkoutHistory({
                         {session.exercises.length} exercises
                       </span>
                     </div>
-                    {totalWeight > 0 && (
+                    {totalVolume > 0 && (
                       <div className="flex items-center gap-1.5 bg-[#ff6a00]/10 rounded-lg px-2.5 py-1.5">
                         <TrendingUp className="w-3 h-3 text-[#ff6a00]" />
                         <span className="text-[10px] font-bold text-[#ff6a00]">
-                          {totalWeight.toFixed(0)} kg vol.
+                          {totalVolume.toFixed(0)} kg vol.
                         </span>
                       </div>
                     )}
@@ -143,38 +163,112 @@ export default function WorkoutHistory({
                   </button>
                 </div>
 
+                {/* Expanded exercises */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 flex flex-col gap-1.5">
+                  <div className="px-4 pb-4 flex flex-col gap-2">
                     <div className="w-full h-px bg-white/5 mb-1" />
-                    {session.exercises.map((ex, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[10px] font-black text-[#ff6a00] w-4 flex-shrink-0">
-                            {i + 1}
-                          </span>
-                          <span className="text-xs font-bold text-neutral-300 truncate">
-                            {ex.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                          <span className="text-[10px] text-neutral-500 font-semibold">
-                            {ex.sets}×{ex.reps}
-                          </span>
-                          {ex.weight ? (
-                            <span className="text-[10px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-md">
-                              {ex.weight} kg
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-neutral-600 font-semibold">
-                              no weight
-                            </span>
+                    {session.exercises.map((ex, i) => {
+                      const best = getBestWeight(ex);
+                      const exKey = `${session.id}-${i}`;
+                      const isExExpanded = expandedEx === exKey;
+                      const hasSetLogs = ex.setLogs && ex.setLogs.length > 0;
+
+                      return (
+                        <div key={i} className="bg-white/5 rounded-xl overflow-hidden">
+                          {/* Exercise header row */}
+                          <button
+                            onClick={() => hasSetLogs && toggleEx(exKey)}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 ${
+                              hasSetLogs ? "cursor-pointer" : "cursor-default"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] font-black text-[#ff6a00] w-4 flex-shrink-0">
+                                {i + 1}
+                              </span>
+                              <span className="text-xs font-bold text-neutral-300 truncate">
+                                {ex.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                              <span className="text-[10px] text-neutral-500 font-semibold">
+                                {ex.sets}×{ex.reps}
+                              </span>
+                              {best !== null ? (
+                                <span className="text-[10px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-md">
+                                  {best} kg
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-neutral-600 font-semibold">
+                                  no weight
+                                </span>
+                              )}
+                              {hasSetLogs && (
+                                <span className="text-neutral-600">
+                                  {isExExpanded ? (
+                                    <ChevronUp className="w-3 h-3" />
+                                  ) : (
+                                    <ChevronDown className="w-3 h-3" />
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Per-set detail rows */}
+                          {hasSetLogs && isExExpanded && (
+                            <div className="px-3 pb-3 flex flex-col gap-1">
+                              <div className="grid grid-cols-[28px_1fr_1fr_28px] gap-2 mb-1">
+                                <div />
+                                <p className="text-[9px] text-neutral-600 uppercase tracking-wider font-bold text-center">
+                                  kg
+                                </p>
+                                <p className="text-[9px] text-neutral-600 uppercase tracking-wider font-bold text-center">
+                                  reps
+                                </p>
+                                <div />
+                              </div>
+                              {ex.setLogs!.map((set) => (
+                                <div
+                                  key={set.setNumber}
+                                  className={`grid grid-cols-[28px_1fr_1fr_28px] gap-2 items-center ${
+                                    !set.completed ? "opacity-40" : ""
+                                  }`}
+                                >
+                                  <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center text-[10px] font-black text-neutral-500">
+                                    {set.setNumber}
+                                  </div>
+                                  <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
+                                    <span className="text-xs font-black text-white">
+                                      {set.weight || "—"}
+                                    </span>
+                                  </div>
+                                  <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
+                                    <span className="text-xs font-black text-white">
+                                      {set.reps || "—"}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                                      set.completed
+                                        ? "bg-emerald-500/20"
+                                        : "bg-white/5"
+                                    }`}
+                                  >
+                                    {set.completed && (
+                                      <Check
+                                        className="w-3 h-3 text-emerald-400"
+                                        strokeWidth={3}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

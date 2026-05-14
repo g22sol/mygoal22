@@ -1,66 +1,73 @@
-import type {
-  ChartPoint,
-  SavedSession,
-  SprintEntry,
-  ExerciseTemplate,
-} from "../types";
+import type { ChartPoint, SavedExercise, SavedSession, SprintEntry } from "../types";
 
-export function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-GB", {
+export function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
-export function nextId(arr: ExerciseTemplate[]) {
-  return arr.length ? Math.max(...arr.map((e) => e.id)) + 1 : 1;
+export function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
 }
 
-export function getLastSession(history: SavedSession[]) {
-  return history.length ? history[history.length - 1] : null;
+export function nextId(list: { id: number }[]) {
+  return list.length ? Math.max(...list.map((e) => e.id)) + 1 : 1;
 }
 
-export function getLatestSprint(sprints: SprintEntry[]) {
-  return sprints.length ? sprints[sprints.length - 1] : null;
+export function getLastSession(h: SavedSession[]): SavedSession | null {
+  return h.length ? h[h.length - 1] : null;
 }
 
-export function getPreviousData(
-  name: string,
-  lastSession: SavedSession | null
-) {
-  if (!lastSession) {
-    return { lastWeight: null, suggested: null };
+export function getLatestSprint(s: SprintEntry[]): SprintEntry | null {
+  return s.length ? s[s.length - 1] : null;
+}
+
+/**
+ * Get the best (heaviest) weight logged for an exercise across all its sets.
+ * Handles both new per-set format and legacy single-weight format.
+ */
+export function getBestWeight(ex: SavedExercise): number | null {
+  // New format — per-set logs
+  if (ex.setLogs && ex.setLogs.length > 0) {
+    const weights = ex.setLogs
+      .filter((s) => s.completed && s.weight !== "")
+      .map((s) => parseFloat(s.weight))
+      .filter((n) => !isNaN(n));
+    return weights.length ? Math.max(...weights) : null;
   }
-
-  const found = lastSession.exercises.find((e) => e.name === name);
-
-  if (!found?.weight) {
-    return { lastWeight: null, suggested: null };
+  // Legacy format — single weight string
+  if (ex.weight && ex.weight !== "") {
+    const n = parseFloat(ex.weight);
+    return isNaN(n) ? null : n;
   }
+  return null;
+}
 
-  const weight = parseFloat(found.weight);
-
+export function getPreviousData(name: string, last: SavedSession | null) {
+  if (!last) return { lastWeight: null, suggested: null };
+  const m = last.exercises.find((e) => e.name === name);
+  if (!m) return { lastWeight: null, suggested: null };
+  const best = getBestWeight(m);
+  if (best === null) return { lastWeight: null, suggested: null };
   return {
-    lastWeight: found.weight,
-    suggested: (Math.round(weight * 1.025 * 10) / 10).toString(),
+    lastWeight: String(best),
+    suggested: (best + 2.5).toFixed(1).replace(/\.0$/, ""),
   };
 }
 
 export function sprintSeries(
   sprints: SprintEntry[],
-  key: keyof SprintEntry
+  key: keyof Omit<SprintEntry, "id" | "date" | "notes">
 ): ChartPoint[] {
   return sprints
-    .filter((s) => s[key])
-    .map((s) => ({
-      label: new Date(s.date).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-      }),
-      value: parseFloat(String(s[key])),
-    }))
-    .filter((p) => !isNaN(p.value));
+    .filter((s) => s[key] !== "" && !isNaN(parseFloat(s[key])))
+    .map((s) => ({ label: shortDate(s.date), value: parseFloat(s[key]) }));
 }
 
 export function gymSeries(
@@ -69,52 +76,20 @@ export function gymSeries(
 ): ChartPoint[] {
   return history
     .map((session) => {
-      const found = session.exercises.find(
-        (e) => e.name === exerciseName
-      );
-
-      if (!found?.weight) return null;
-
-      return {
-        label: new Date(session.date).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-        }),
-        value: parseFloat(found.weight),
-      };
+      const ex = session.exercises.find((e) => e.name === exerciseName);
+      if (!ex) return null;
+      const best = getBestWeight(ex);
+      if (best === null) return null;
+      return { label: shortDate(session.date), value: best };
     })
     .filter(Boolean) as ChartPoint[];
 }
 
-export function getStats(
-  data: ChartPoint[],
-  higherIsBetter: boolean
-) {
-  if (!data.length) {
-    return {
-      pb: null,
-      latest: null,
-      diff: null,
-    };
-  }
-
+export function getStats(data: ChartPoint[], higherIsBetter: boolean) {
+  if (!data.length) return { pb: null, latest: null, diff: null };
+  const values = data.map((d) => d.value);
+  const pb = higherIsBetter ? Math.max(...values) : Math.min(...values);
   const latest = data[data.length - 1].value;
-
-  const pb = higherIsBetter
-    ? Math.max(...data.map((d) => d.value))
-    : Math.min(...data.map((d) => d.value));
-
-  let diff = null;
-
-  if (data.length >= 2) {
-    diff = Number(
-      (latest - data[data.length - 2].value).toFixed(2)
-    );
-  }
-
-  return {
-    pb,
-    latest,
-    diff,
-  };
+  const diff = parseFloat((latest - data[0].value).toFixed(2));
+  return { pb, latest, diff };
 }
