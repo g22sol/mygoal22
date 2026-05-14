@@ -13,22 +13,31 @@ import {
   Timer,
   Gauge,
   RotateCcw,
-  LogOut,                          // ← add
+  LogOut,
+  Trophy,
+  Zap,
 } from "lucide-react";
-import type { ExerciseTemplate, SavedSession, SprintEntry, ViewName } from "../types";
+import type {
+  ExerciseTemplate,
+  SavedSession,
+  SprintEntry,
+  ViewName,
+} from "../types";
 import { WEEK_SCHEDULE } from "../constants";
 import { formatDate } from "../lib/utils";
+import type { ExercisePR } from "../lib/prDetection";
 
 type Props = {
   template: ExerciseTemplate[];
   lastSession: SavedSession | null;
   latestSprint: SprintEntry | null;
   touchesComplete: boolean;
+  recentPRs: ExercisePR[];            // ← new
   onStartSession: () => void;
   onOpenTemplate: () => void;
   onTouchesComplete: () => void;
   onNavigate: (v: ViewName) => void;
-  onLogout: () => void;            // ← add
+  onLogout: () => void;
 };
 
 const SPRINT_METRIC_DEFS = [
@@ -43,16 +52,17 @@ export default function Dashboard({
   lastSession,
   latestSprint,
   touchesComplete,
+  recentPRs,
   onStartSession,
   onOpenTemplate,
   onTouchesComplete,
   onNavigate,
-  onLogout,                        // ← add
+  onLogout,
 }: Props) {
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
 
-      {/* ── Header ── */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="px-5 pt-10 pb-5 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -67,8 +77,6 @@ export default function Dashboard({
             Elite Performance System
           </p>
         </div>
-
-        {/* Avatar + logout */}
         <div className="flex items-center gap-2">
           <button
             onClick={onLogout}
@@ -83,7 +91,7 @@ export default function Dashboard({
         </div>
       </header>
 
-      {/* ── Greeting ── */}
+      {/* ── Greeting ──────────────────────────────────────────────────────── */}
       <section className="px-5 mb-5">
         <div className="flex items-center gap-2 text-[#ff6a00] text-xs font-bold uppercase tracking-widest">
           <Activity className="w-4 h-4" />
@@ -94,7 +102,7 @@ export default function Dashboard({
         </h2>
       </section>
 
-      {/* ── Today's Training ── */}
+      {/* ── Today's Training ──────────────────────────────────────────────── */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
         <div className="p-5">
@@ -119,8 +127,12 @@ export default function Dashboard({
             {template.map((ex, i) => (
               <div key={ex.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-[#ff6a00] w-4">{i + 1}</span>
-                  <span className="text-xs font-semibold text-neutral-300">{ex.name}</span>
+                  <span className="text-[10px] font-black text-[#ff6a00] w-4">
+                    {i + 1}
+                  </span>
+                  <span className="text-xs font-semibold text-neutral-300">
+                    {ex.name}
+                  </span>
                 </div>
                 <span className="text-[10px] text-neutral-500 font-semibold">
                   {ex.sets}×{ex.reps}
@@ -146,7 +158,45 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Last Session ── */}
+      {/* ── Recent PRs ────────────────────────────────────────────────────── */}
+      {recentPRs.length > 0 && (
+        <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-amber-400/30 overflow-hidden relative">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-400 via-[#ff6a00] to-transparent" />
+          <div className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold">
+                New Personal Records
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {recentPRs.map((pr) => (
+                <div
+                  key={pr.exerciseName}
+                  className="flex items-center justify-between bg-amber-400/5 border border-amber-400/15 rounded-xl px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                    <span className="text-xs font-bold text-neutral-200 truncate">
+                      {pr.exerciseName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <span className="text-[10px] text-neutral-500 font-semibold">
+                      {formatDate(pr.date)}
+                    </span>
+                    <span className="text-[10px] font-black text-amber-400 bg-amber-400/15 px-1.5 py-0.5 rounded-md">
+                      {pr.weight} kg
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Last Session ──────────────────────────────────────────────────── */}
       {lastSession && (
         <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 to-transparent" />
@@ -168,34 +218,49 @@ export default function Dashboard({
               {formatDate(lastSession.date)}
             </div>
             <div className="flex flex-col gap-1.5">
-              {lastSession.exercises.map((ex, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5"
-                >
-                  <span className="text-xs font-bold text-neutral-300">{ex.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-neutral-500 font-semibold">
-                      {ex.sets}×{ex.reps}
+              {lastSession.exercises.map((ex, i) => {
+                const best = ex.setLogs?.length
+                  ? Math.max(
+                      ...ex.setLogs
+                        .filter((s) => s.completed && s.weight !== "")
+                        .map((s) => parseFloat(s.weight))
+                        .filter((n) => !isNaN(n))
+                    )
+                  : parseFloat(ex.weight ?? "");
+
+                const displayWeight = isNaN(best) || best === -Infinity ? null : best;
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5"
+                  >
+                    <span className="text-xs font-bold text-neutral-300">
+                      {ex.name}
                     </span>
-                    {ex.weight ? (
-                      <span className="text-[10px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-md">
-                        {ex.weight} kg
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-neutral-500 font-semibold">
+                        {ex.sets}×{ex.reps}
                       </span>
-                    ) : (
-                      <span className="text-[10px] text-neutral-600 font-semibold">
-                        no weight
-                      </span>
-                    )}
+                      {displayWeight !== null ? (
+                        <span className="text-[10px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-md">
+                          {displayWeight} kg
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-neutral-600 font-semibold">
+                          no weight
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
       )}
 
-      {/* ── 10K Touches ── */}
+      {/* ── 10K Touches ───────────────────────────────────────────────────── */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ee0979] via-[#ff6a00] to-transparent" />
         <div className="p-5">
@@ -203,7 +268,9 @@ export default function Dashboard({
             10K Touches
           </p>
           <div className="flex items-baseline gap-2 mt-2">
-            <h3 className="text-3xl font-black">{touchesComplete ? "10,000" : "0"}</h3>
+            <h3 className="text-3xl font-black">
+              {touchesComplete ? "10,000" : "0"}
+            </h3>
             <span className="text-neutral-500 text-sm font-semibold">/ 10,000</span>
           </div>
           <div className="w-full h-1.5 bg-white/5 rounded-full mt-3 mb-1 overflow-hidden">
@@ -241,10 +308,12 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Sprint Metrics ── */}
+      {/* ── Sprint Metrics ────────────────────────────────────────────────── */}
       <section className="mx-5 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-black uppercase tracking-widest">Sprint Metrics</h3>
+          <h3 className="text-sm font-black uppercase tracking-widest">
+            Sprint Metrics
+          </h3>
           <button
             onClick={() => onNavigate("sprint")}
             className="text-[10px] font-bold text-[#ff6a00] bg-[#ff6a00]/10 px-2 py-0.5 rounded-full hover:bg-[#ff6a00]/20 transition-colors"
@@ -285,7 +354,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Weekly Schedule ── */}
+      {/* ── Weekly Schedule ───────────────────────────────────────────────── */}
       <section className="mx-5 mb-6">
         <h3 className="text-sm font-black uppercase tracking-widest mb-3">
           Weekly Schedule

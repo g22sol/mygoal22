@@ -11,10 +11,13 @@ import {
   Trash2,
   TrendingUp,
   Check,
+  Trophy,
+  Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { SavedSession } from "../types";
 import { formatDate, getBestWeight } from "../lib/utils";
+import { buildPRData, isExercisePR } from "../lib/prDetection";
 
 type Props = {
   history: SavedSession[];
@@ -31,7 +34,11 @@ export default function WorkoutHistory({
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
+
   const sorted = [...history].reverse();
+
+  // Build PR data once from the full history
+  const { sessionPRs } = useMemo(() => buildPRData(history), [history]);
 
   const toggleEx = (key: string) =>
     setExpandedEx((prev) => (prev === key ? null : key));
@@ -39,6 +46,7 @@ export default function WorkoutHistory({
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
 
+      {/* Header */}
       <header className="px-5 pt-10 pb-5 flex items-center gap-4">
         <button
           onClick={onBack}
@@ -80,6 +88,12 @@ export default function WorkoutHistory({
         <div className="px-5 flex flex-col gap-3">
           {sorted.map((session, index) => {
             const isExpanded = expanded === session.id;
+
+            // PR names for this session
+            const prNames = Array.from(sessionPRs[session.id] ?? []);
+            const hasPRs = prNames.length > 0;
+
+            // Volume
             const totalVolume = session.exercises.reduce((sum, ex) => {
               if (ex.setLogs) {
                 return (
@@ -88,12 +102,13 @@ export default function WorkoutHistory({
                     .filter((s) => s.completed && s.weight !== "")
                     .reduce(
                       (s, set) =>
-                        s + (parseFloat(set.weight) || 0) * (parseInt(set.reps) || 0),
+                        s +
+                        (parseFloat(set.weight) || 0) *
+                          (parseInt(set.reps) || 0),
                       0
                     )
                 );
               }
-              // legacy
               const w = parseFloat(ex.weight ?? "");
               return sum + (isNaN(w) ? 0 : w * ex.sets * ex.reps);
             }, 0);
@@ -101,16 +116,35 @@ export default function WorkoutHistory({
             return (
               <div
                 key={session.id}
-                className="rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative"
+                className={`rounded-2xl border overflow-hidden relative transition-all ${
+                  hasPRs
+                    ? "bg-[#111111] border-amber-500/30"
+                    : "bg-[#111111] border-white/10"
+                }`}
               >
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
+                {/* Top accent — gold for PR sessions, normal otherwise */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-[2px] ${
+                    hasPRs
+                      ? "bg-gradient-to-r from-amber-400 via-[#ff6a00] to-transparent"
+                      : "bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent"
+                  }`}
+                />
+
                 <div className="p-4">
+                  {/* Title row */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         {index === 0 && (
                           <span className="text-[9px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-full uppercase tracking-widest">
                             Latest
+                          </span>
+                        )}
+                        {hasPRs && (
+                          <span className="flex items-center gap-0.5 text-[9px] font-black text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full uppercase tracking-widest">
+                            <Trophy className="w-2.5 h-2.5" />
+                            {prNames.length} PR{prNames.length > 1 ? "s" : ""}
                           </span>
                         )}
                         <div className="flex items-center gap-1 text-neutral-500 text-[10px] font-semibold">
@@ -121,7 +155,23 @@ export default function WorkoutHistory({
                       <h3 className="text-sm font-black text-white truncate">
                         {session.title}
                       </h3>
+
+                      {/* PR exercise names */}
+                      {hasPRs && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {prNames.map((name) => (
+                            <span
+                              key={name}
+                              className="flex items-center gap-0.5 text-[9px] font-bold text-amber-400 bg-amber-400/8 border border-amber-400/20 px-1.5 py-0.5 rounded-md"
+                            >
+                              <Zap className="w-2 h-2" />
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
                     <button
                       onClick={() => onDelete(session.id)}
                       className="ml-3 w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20 active:scale-95 transition-all flex-shrink-0"
@@ -130,8 +180,8 @@ export default function WorkoutHistory({
                     </button>
                   </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-3 mb-3">
+                  {/* Stats strip */}
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
                     <div className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2.5 py-1.5">
                       <Dumbbell className="w-3 h-3 text-neutral-500" />
                       <span className="text-[10px] font-bold text-neutral-400">
@@ -148,6 +198,7 @@ export default function WorkoutHistory({
                     )}
                   </div>
 
+                  {/* Expand toggle */}
                   <button
                     onClick={() => setExpanded(isExpanded ? null : session.id)}
                     className="w-full flex items-center justify-between bg-white/5 active:scale-[0.99] transition-all rounded-xl px-3 py-2.5"
@@ -171,11 +222,23 @@ export default function WorkoutHistory({
                       const best = getBestWeight(ex);
                       const exKey = `${session.id}-${i}`;
                       const isExExpanded = expandedEx === exKey;
-                      const hasSetLogs = ex.setLogs && ex.setLogs.length > 0;
+                      const hasSetLogs = !!ex.setLogs?.length;
+                      const isPR = isExercisePR(
+                        session.id,
+                        ex.name,
+                        sessionPRs
+                      );
 
                       return (
-                        <div key={i} className="bg-white/5 rounded-xl overflow-hidden">
-                          {/* Exercise header row */}
+                        <div
+                          key={i}
+                          className={`rounded-xl overflow-hidden border transition-all ${
+                            isPR
+                              ? "border-amber-400/30 bg-amber-400/5"
+                              : "border-transparent bg-white/5"
+                          }`}
+                        >
+                          {/* Exercise header */}
                           <button
                             onClick={() => hasSetLogs && toggleEx(exKey)}
                             className={`w-full flex items-center justify-between px-3 py-2.5 ${
@@ -189,13 +252,25 @@ export default function WorkoutHistory({
                               <span className="text-xs font-bold text-neutral-300 truncate">
                                 {ex.name}
                               </span>
+                              {isPR && (
+                                <span className="flex items-center gap-0.5 text-[8px] font-black text-amber-400 bg-amber-400/15 border border-amber-400/30 px-1 py-0.5 rounded flex-shrink-0">
+                                  <Trophy className="w-2 h-2" />
+                                  PR
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                               <span className="text-[10px] text-neutral-500 font-semibold">
                                 {ex.sets}×{ex.reps}
                               </span>
                               {best !== null ? (
-                                <span className="text-[10px] font-black text-[#ff6a00] bg-[#ff6a00]/10 px-1.5 py-0.5 rounded-md">
+                                <span
+                                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
+                                    isPR
+                                      ? "text-amber-400 bg-amber-400/15"
+                                      : "text-[#ff6a00] bg-[#ff6a00]/10"
+                                  }`}
+                                >
                                   {best} kg
                                 </span>
                               ) : (
@@ -215,7 +290,7 @@ export default function WorkoutHistory({
                             </div>
                           </button>
 
-                          {/* Per-set detail rows */}
+                          {/* Per-set detail */}
                           {hasSetLogs && isExExpanded && (
                             <div className="px-3 pb-3 flex flex-col gap-1">
                               <div className="grid grid-cols-[28px_1fr_1fr_28px] gap-2 mb-1">
@@ -228,42 +303,61 @@ export default function WorkoutHistory({
                                 </p>
                                 <div />
                               </div>
-                              {ex.setLogs!.map((set) => (
-                                <div
-                                  key={set.setNumber}
-                                  className={`grid grid-cols-[28px_1fr_1fr_28px] gap-2 items-center ${
-                                    !set.completed ? "opacity-40" : ""
-                                  }`}
-                                >
-                                  <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center text-[10px] font-black text-neutral-500">
-                                    {set.setNumber}
-                                  </div>
-                                  <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
-                                    <span className="text-xs font-black text-white">
-                                      {set.weight || "—"}
-                                    </span>
-                                  </div>
-                                  <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
-                                    <span className="text-xs font-black text-white">
-                                      {set.reps || "—"}
-                                    </span>
-                                  </div>
+                              {ex.setLogs!.map((set) => {
+                                const setW = parseFloat(set.weight);
+                                const isSetPR =
+                                  isPR &&
+                                  !isNaN(setW) &&
+                                  setW === best;
+                                return (
                                   <div
-                                    className={`w-6 h-6 rounded-md flex items-center justify-center ${
-                                      set.completed
-                                        ? "bg-emerald-500/20"
-                                        : "bg-white/5"
+                                    key={set.setNumber}
+                                    className={`grid grid-cols-[28px_1fr_1fr_28px] gap-2 items-center ${
+                                      !set.completed ? "opacity-40" : ""
                                     }`}
                                   >
-                                    {set.completed && (
-                                      <Check
-                                        className="w-3 h-3 text-emerald-400"
-                                        strokeWidth={3}
-                                      />
-                                    )}
+                                    <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center text-[10px] font-black text-neutral-500">
+                                      {set.setNumber}
+                                    </div>
+                                    <div
+                                      className={`rounded-lg px-2 py-1.5 text-center ${
+                                        isSetPR && set.completed
+                                          ? "bg-amber-400/15 border border-amber-400/30"
+                                          : "bg-black/20"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`text-xs font-black ${
+                                          isSetPR && set.completed
+                                            ? "text-amber-400"
+                                            : "text-white"
+                                        }`}
+                                      >
+                                        {set.weight || "—"}
+                                      </span>
+                                    </div>
+                                    <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
+                                      <span className="text-xs font-black text-white">
+                                        {set.reps || "—"}
+                                      </span>
+                                    </div>
+                                    <div
+                                      className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                                        set.completed
+                                          ? "bg-emerald-500/20"
+                                          : "bg-white/5"
+                                      }`}
+                                    >
+                                      {set.completed && (
+                                        <Check
+                                          className="w-3 h-3 text-emerald-400"
+                                          strokeWidth={3}
+                                        />
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type {
   ExerciseTemplate,
@@ -21,6 +21,8 @@ import {
   deleteSprint,
 } from "./lib/storage";
 import { getLastSession, getLatestSprint, nextId } from "./lib/utils";
+import { buildPRData, getRecentPRs } from "./lib/prDetection";
+import type { ExercisePR } from "./lib/prDetection";
 import { supabase } from "./lib/supabase";
 
 import LoginScreen from "./components/LoginScreen";
@@ -85,6 +87,16 @@ export default function Page() {
 
   const lastSession = getLastSession(history);
   const latestSprint = getLatestSprint(sprints);
+
+  const { prMap, sessionPRs } = useMemo(
+    () => buildPRData(history),
+    [history]
+  );
+
+  const recentPRs: ExercisePR[] = useMemo(
+    () => getRecentPRs(history, prMap, sessionPRs, 3),
+    [history, prMap, sessionPRs]
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -254,6 +266,7 @@ export default function Page() {
             lastSession={lastSession}
             latestSprint={latestSprint}
             touchesComplete={touchesComplete}
+            recentPRs={recentPRs}
             onStartSession={handleStartSession}
             onOpenTemplate={handleOpenTemplate}
             onTouchesComplete={handleTouchesComplete}
