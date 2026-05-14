@@ -9,14 +9,16 @@ import type {
   SprintEntry,
   ViewName,
 } from "./types";
-import { DEFAULT_TEMPLATE, EMPTY_SPRINT } from "./constants";
+import { DEFAULT_TEMPLATE } from "./constants";
 import {
   loadTemplate,
   saveTemplate,
   loadHistory,
-  saveHistory,
+  saveSession,
+  deleteSession,
   loadSprints,
-  saveSprints,
+  saveSprint,
+  deleteSprint,
 } from "./lib/storage";
 import { getLastSession, getLatestSprint, nextId } from "./lib/utils";
 import { supabase } from "./lib/supabase";
@@ -33,35 +35,9 @@ import ProgressAnalytics from "./components/ProgressAnalytics";
 type AuthState = "loading" | "unauthenticated" | "authenticated";
 
 export default function Page() {
-  // ── Auth ───────────────────────────────────────────────────────────────────
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [session, setSession] = useState<Session | null>(null);
 
-  useEffect(() => {
-    // Check existing session on mount
-    supabase.auth.getSession().then(({ data }) => {
-      const s = data.session;
-      setSession(s);
-      setAuthState(s ? "authenticated" : "unauthenticated");
-    });
-
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
-        setSession(s);
-        setAuthState(s ? "authenticated" : "unauthenticated");
-      }
-    );
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    // onAuthStateChange will fire and set state to unauthenticated
-  };
-
-  // ── App state ──────────────────────────────────────────────────────────────
   const [view, setView] = useState<ViewName>("dashboard");
   const [touchesComplete, setTouchesComplete] = useState(false);
   const [template, setTemplate] = useState<ExerciseTemplate[]>(DEFAULT_TEMPLATE);
@@ -72,23 +48,55 @@ export default function Page() {
   const [templateSaved, setTemplateSaved] = useState(false);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const s = data.session;
+      setSession(s);
+      setAuthState(s ? "authenticated" : "unauthenticated");
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthState(s ? "authenticated" : "unauthenticated");
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (authState !== "authenticated") return;
-    if (localStorage.getItem("touches_complete") === "true") setTouchesComplete(true);
-    setTemplate(loadTemplate());
-    setHistory(loadHistory());
-    setSprints(loadSprints());
+
+    async function loadAll() {
+      if (localStorage.getItem("touches_complete") === "true") {
+        setTouchesComplete(true);
+      }
+
+      const [tpl, hist, sprts] = await Promise.all([
+        loadTemplate(),
+        loadHistory(),
+        loadSprints(),
+      ]);
+
+      setTemplate(tpl);
+      setHistory(hist);
+      setSprints(sprts);
+    }
+
+    loadAll();
   }, [authState]);
 
   const lastSession = getLastSession(history);
   const latestSprint = getLatestSprint(sprints);
 
-  // ── Touches ────────────────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setView("dashboard");
+  };
+
   const handleTouchesComplete = () => {
     setTouchesComplete(true);
     localStorage.setItem("touches_complete", "true");
   };
 
-  // ── Session ────────────────────────────────────────────────────────────────
   const handleStartSession = () => {
     setExercises(template.map((e) => ({ ...e, weight: "", completed: false })));
     setView("session");
@@ -109,7 +117,7 @@ export default function Page() {
       prev.map((e) => (e.id === id ? { ...e, completed: true } : e))
     );
 
-  const handleFinishSession = () => {
+  const handleFinishSession = async () => {
     const s: SavedSession = {
       id: `${Date.now()}`,
       date: new Date().toISOString(),
@@ -121,20 +129,17 @@ export default function Page() {
         weight,
       })),
     };
-    const updated = [...history, s];
+
+    const updated = await saveSession(s, history);
     setHistory(updated);
-    saveHistory(updated);
     setView("dashboard");
   };
 
-  // ── Workout history ────────────────────────────────────────────────────────
-  const handleDeleteSession = (id: string) => {
-    const updated = history.filter((s) => s.id !== id);
+  const handleDeleteSession = async (id: string) => {
+    const updated = await deleteSession(id, history);
     setHistory(updated);
-    saveHistory(updated);
   };
 
-  // ── Template ───────────────────────────────────────────────────────────────
   const handleOpenTemplate = () => {
     setDraft(template.map((e) => ({ ...e })));
     setTemplateSaved(false);
@@ -159,36 +164,31 @@ export default function Page() {
   const handleRemoveExercise = (id: number) =>
     setDraft((prev) => prev.filter((e) => e.id !== id));
 
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     const cleaned = draft.map((e) => ({
       ...e,
       name: e.name.trim() || "Exercise",
       sets: Math.max(1, e.sets),
       reps: Math.max(1, e.reps),
     }));
+
     setTemplate(cleaned);
-    saveTemplate(cleaned);
+    await saveTemplate(cleaned);
     setTemplateSaved(true);
     setTimeout(() => setView("dashboard"), 700);
   };
 
-  // ── Sprints ────────────────────────────────────────────────────────────────
-  const handleSaveSprint = (entry: Omit<SprintEntry, "id">) => {
+  const handleSaveSprint = async (entry: Omit<SprintEntry, "id">) => {
     const newEntry: SprintEntry = { id: `${Date.now()}`, ...entry };
-    const updated = [...sprints, newEntry];
+    const updated = await saveSprint(newEntry, sprints);
     setSprints(updated);
-    saveSprints(updated);
   };
 
-  const handleDeleteSprint = (id: string) => {
-    const updated = sprints.filter((s) => s.id !== id);
+  const handleDeleteSprint = async (id: string) => {
+    const updated = await deleteSprint(id, sprints);
     setSprints(updated);
-    saveSprints(updated);
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  // Loading state — show nothing while Supabase checks the session
   if (authState === "loading") {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -204,11 +204,8 @@ export default function Page() {
     );
   }
 
-  // Auth gate
   if (authState === "unauthenticated") {
-    return (
-      <LoginScreen onAuthenticated={() => setAuthState("authenticated")} />
-    );
+    return <LoginScreen onAuthenticated={() => setAuthState("authenticated")} />;
   }
 
   const showNav =
@@ -231,6 +228,7 @@ export default function Page() {
             onFinishSession={handleFinishSession}
           />
         );
+
       case "history":
         return (
           <WorkoutHistory
@@ -240,6 +238,7 @@ export default function Page() {
             onStartSession={handleStartSession}
           />
         );
+
       case "template":
         return (
           <TemplateEditor
@@ -252,6 +251,7 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "sprint":
         return (
           <SprintTracker
@@ -261,6 +261,7 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "progress":
         return (
           <ProgressAnalytics
@@ -269,6 +270,7 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "dashboard":
       default:
         return (
