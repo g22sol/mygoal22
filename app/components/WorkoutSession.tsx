@@ -93,7 +93,7 @@ function RestTimer({
   onDismiss,
 }: RestTimerProps) {
   const [duration, setDuration] = useState<RestOption>(defaultDuration);
-  const [remaining, setRemaining] = useState(defaultDuration);
+  const [remaining, setRemaining] = useState<number>(defaultDuration);
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
