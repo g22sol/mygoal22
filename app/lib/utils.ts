@@ -1,5 +1,7 @@
 import type { ChartPoint, SavedExercise, SavedSession, SprintEntry } from "../types";
 
+// ── Formatting ─────────────────────────────────────────────────────────────────
+
 export function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
     weekday: "short",
@@ -20,6 +22,8 @@ export function nextId(list: { id: number }[]) {
   return list.length ? Math.max(...list.map((e) => e.id)) + 1 : 1;
 }
 
+// ── Session / sprint helpers ───────────────────────────────────────────────────
+
 export function getLastSession(h: SavedSession[]): SavedSession | null {
   return h.length ? h[h.length - 1] : null;
 }
@@ -28,12 +32,13 @@ export function getLatestSprint(s: SprintEntry[]): SprintEntry | null {
   return s.length ? s[s.length - 1] : null;
 }
 
+// ── Weight helpers ─────────────────────────────────────────────────────────────
+
 /**
- * Get the best (heaviest) weight logged for an exercise across all its sets.
- * Handles both new per-set format and legacy single-weight format.
+ * Returns the highest weight logged for an exercise across all its sets.
+ * Handles new per-set format and legacy single-weight format.
  */
 export function getBestWeight(ex: SavedExercise): number | null {
-  // New format — per-set logs
   if (ex.setLogs && ex.setLogs.length > 0) {
     const weights = ex.setLogs
       .filter((s) => s.completed && s.weight !== "")
@@ -41,13 +46,73 @@ export function getBestWeight(ex: SavedExercise): number | null {
       .filter((n) => !isNaN(n));
     return weights.length ? Math.max(...weights) : null;
   }
-  // Legacy format — single weight string
   if (ex.weight && ex.weight !== "") {
     const n = parseFloat(ex.weight);
     return isNaN(n) ? null : n;
   }
   return null;
 }
+
+// ── 1RM helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Epley formula: weight × (1 + reps / 30)
+ * Returns null for invalid inputs or when reps === 1 (actual 1RM, no estimation needed).
+ */
+export function estimatedOneRM(weight: number, reps: number): number | null {
+  if (weight <= 0 || reps <= 0 || isNaN(weight) || isNaN(reps)) return null;
+  if (reps === 1) return weight; // actual 1RM
+  return weight * (1 + reps / 30);
+}
+
+/**
+ * Returns the highest estimated 1RM across all completed sets of a saved exercise.
+ * Tries new setLogs format first, then falls back to legacy single weight + target reps.
+ */
+export function getBest1RM(ex: SavedExercise): number | null {
+  // New per-set format
+  if (ex.setLogs && ex.setLogs.length > 0) {
+    const estimates = ex.setLogs
+      .filter((s) => s.completed && s.weight !== "" && s.reps !== "")
+      .map((s) => {
+        const w = parseFloat(s.weight);
+        const r = parseInt(s.reps, 10);
+        return estimatedOneRM(w, r);
+      })
+      .filter((v): v is number => v !== null);
+    return estimates.length ? Math.max(...estimates) : null;
+  }
+
+  // Legacy single weight — use the target reps from the exercise
+  if (ex.weight && ex.weight !== "") {
+    const w = parseFloat(ex.weight);
+    const r = ex.reps; // target reps stored on the exercise
+    if (!isNaN(w) && r > 0) return estimatedOneRM(w, r);
+  }
+
+  return null;
+}
+
+/**
+ * Builds a ChartPoint series of the best estimated 1RM per session
+ * for a given exercise name. Used in ProgressAnalytics.
+ */
+export function oneRMSeries(
+  history: SavedSession[],
+  exerciseName: string
+): ChartPoint[] {
+  return history
+    .map((session) => {
+      const ex = session.exercises.find((e) => e.name === exerciseName);
+      if (!ex) return null;
+      const orm = getBest1RM(ex);
+      if (orm === null) return null;
+      return { label: shortDate(session.date), value: parseFloat(orm.toFixed(1)) };
+    })
+    .filter(Boolean) as ChartPoint[];
+}
+
+// ── Progressive overload ───────────────────────────────────────────────────────
 
 export function getPreviousData(name: string, last: SavedSession | null) {
   if (!last) return { lastWeight: null, suggested: null };
@@ -60,6 +125,8 @@ export function getPreviousData(name: string, last: SavedSession | null) {
     suggested: (best + 2.5).toFixed(1).replace(/\.0$/, ""),
   };
 }
+
+// ── Chart series ───────────────────────────────────────────────────────────────
 
 export function sprintSeries(
   sprints: SprintEntry[],

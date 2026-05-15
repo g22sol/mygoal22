@@ -13,10 +13,11 @@ import {
   Check,
   Trophy,
   Zap,
+  Sigma,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { SavedSession } from "../types";
-import { formatDate, getBestWeight } from "../lib/utils";
+import { formatDate, getBestWeight, getBest1RM } from "../lib/utils";
 import { buildPRData, isExercisePR } from "../lib/prDetection";
 
 type Props = {
@@ -36,8 +37,6 @@ export default function WorkoutHistory({
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
 
   const sorted = [...history].reverse();
-
-  // Build PR data once from the full history
   const { sessionPRs } = useMemo(() => buildPRData(history), [history]);
 
   const toggleEx = (key: string) =>
@@ -62,7 +61,9 @@ export default function WorkoutHistory({
         </div>
         {history.length > 0 && (
           <div className="bg-[#ff6a00]/10 px-2.5 py-1 rounded-full">
-            <span className="text-xs font-black text-[#ff6a00]">{history.length}</span>
+            <span className="text-xs font-black text-[#ff6a00]">
+              {history.length}
+            </span>
           </div>
         )}
       </header>
@@ -88,12 +89,9 @@ export default function WorkoutHistory({
         <div className="px-5 flex flex-col gap-3">
           {sorted.map((session, index) => {
             const isExpanded = expanded === session.id;
-
-            // PR names for this session
             const prNames = Array.from(sessionPRs[session.id] ?? []);
             const hasPRs = prNames.length > 0;
 
-            // Volume
             const totalVolume = session.exercises.reduce((sum, ex) => {
               if (ex.setLogs) {
                 return (
@@ -122,7 +120,7 @@ export default function WorkoutHistory({
                     : "bg-[#111111] border-white/10"
                 }`}
               >
-                {/* Top accent — gold for PR sessions, normal otherwise */}
+                {/* Top accent */}
                 <div
                   className={`absolute top-0 left-0 right-0 h-[2px] ${
                     hasPRs
@@ -155,8 +153,6 @@ export default function WorkoutHistory({
                       <h3 className="text-sm font-black text-white truncate">
                         {session.title}
                       </h3>
-
-                      {/* PR exercise names */}
                       {hasPRs && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {prNames.map((name) => (
@@ -171,7 +167,6 @@ export default function WorkoutHistory({
                         </div>
                       )}
                     </div>
-
                     <button
                       onClick={() => onDelete(session.id)}
                       className="ml-3 w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20 active:scale-95 transition-all flex-shrink-0"
@@ -200,7 +195,9 @@ export default function WorkoutHistory({
 
                   {/* Expand toggle */}
                   <button
-                    onClick={() => setExpanded(isExpanded ? null : session.id)}
+                    onClick={() =>
+                      setExpanded(isExpanded ? null : session.id)
+                    }
                     className="w-full flex items-center justify-between bg-white/5 active:scale-[0.99] transition-all rounded-xl px-3 py-2.5"
                   >
                     <span className="text-[11px] font-bold text-neutral-400">
@@ -220,6 +217,10 @@ export default function WorkoutHistory({
                     <div className="w-full h-px bg-white/5 mb-1" />
                     {session.exercises.map((ex, i) => {
                       const best = getBestWeight(ex);
+                      const orm = getBest1RM(ex);
+                      const ormDisplay =
+                        orm !== null ? orm.toFixed(1).replace(/\.0$/, "") : null;
+
                       const exKey = `${session.id}-${i}`;
                       const isExExpanded = expandedEx === exKey;
                       const hasSetLogs = !!ex.setLogs?.length;
@@ -238,14 +239,15 @@ export default function WorkoutHistory({
                               : "border-transparent bg-white/5"
                           }`}
                         >
-                          {/* Exercise header */}
+                          {/* Exercise header row */}
                           <button
                             onClick={() => hasSetLogs && toggleEx(exKey)}
-                            className={`w-full flex items-center justify-between px-3 py-2.5 ${
+                            className={`w-full flex items-start justify-between px-3 py-2.5 ${
                               hasSetLogs ? "cursor-pointer" : "cursor-default"
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            {/* Left: index + name + PR badge */}
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span className="text-[10px] font-black text-[#ff6a00] w-4 flex-shrink-0">
                                 {i + 1}
                               </span>
@@ -259,7 +261,9 @@ export default function WorkoutHistory({
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+
+                            {/* Right: sets×reps, best weight, estimated 1RM */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-2 flex-wrap justify-end">
                               <span className="text-[10px] text-neutral-500 font-semibold">
                                 {ex.sets}×{ex.reps}
                               </span>
@@ -278,6 +282,13 @@ export default function WorkoutHistory({
                                   no weight
                                 </span>
                               )}
+                              {/* Estimated 1RM chip */}
+                              {ormDisplay !== null && (
+                                <span className="flex items-center gap-0.5 text-[9px] font-black text-purple-400 bg-purple-400/10 border border-purple-400/20 px-1.5 py-0.5 rounded-md">
+                                  <Sigma className="w-2 h-2" />
+                                  {ormDisplay} kg
+                                </span>
+                              )}
                               {hasSetLogs && (
                                 <span className="text-neutral-600">
                                   {isExExpanded ? (
@@ -290,10 +301,19 @@ export default function WorkoutHistory({
                             </div>
                           </button>
 
-                          {/* Per-set detail */}
+                          {/* 1RM explanation line */}
+                          {ormDisplay !== null && (
+                            <div className="px-3 pb-1.5 -mt-1">
+                              <p className="text-[9px] text-neutral-600 font-semibold">
+                                Est. 1RM (Epley): {ormDisplay} kg
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Per-set detail rows */}
                           {hasSetLogs && isExExpanded && (
                             <div className="px-3 pb-3 flex flex-col gap-1">
-                              <div className="grid grid-cols-[28px_1fr_1fr_28px] gap-2 mb-1">
+                              <div className="grid grid-cols-[28px_1fr_1fr_1fr_28px] gap-1.5 mb-1">
                                 <div />
                                 <p className="text-[9px] text-neutral-600 uppercase tracking-wider font-bold text-center">
                                   kg
@@ -301,24 +321,39 @@ export default function WorkoutHistory({
                                 <p className="text-[9px] text-neutral-600 uppercase tracking-wider font-bold text-center">
                                   reps
                                 </p>
+                                <p className="text-[9px] text-purple-500 uppercase tracking-wider font-bold text-center">
+                                  1RM~
+                                </p>
                                 <div />
                               </div>
                               {ex.setLogs!.map((set) => {
                                 const setW = parseFloat(set.weight);
-                                const isSetPR =
-                                  isPR &&
+                                const setR = parseInt(set.reps, 10);
+                                const setORM =
+                                  set.completed &&
                                   !isNaN(setW) &&
-                                  setW === best;
+                                  !isNaN(setR) &&
+                                  set.weight !== "" &&
+                                  set.reps !== ""
+                                    ? estimatedOneRMDisplay(setW, setR)
+                                    : null;
+
+                                const isSetPR =
+                                  isPR && !isNaN(setW) && setW === best;
+
                                 return (
                                   <div
                                     key={set.setNumber}
-                                    className={`grid grid-cols-[28px_1fr_1fr_28px] gap-2 items-center ${
+                                    className={`grid grid-cols-[28px_1fr_1fr_1fr_28px] gap-1.5 items-center ${
                                       !set.completed ? "opacity-40" : ""
                                     }`}
                                   >
+                                    {/* Set number */}
                                     <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center text-[10px] font-black text-neutral-500">
                                       {set.setNumber}
                                     </div>
+
+                                    {/* Weight cell */}
                                     <div
                                       className={`rounded-lg px-2 py-1.5 text-center ${
                                         isSetPR && set.completed
@@ -336,11 +371,28 @@ export default function WorkoutHistory({
                                         {set.weight || "—"}
                                       </span>
                                     </div>
+
+                                    {/* Reps cell */}
                                     <div className="bg-black/20 rounded-lg px-2 py-1.5 text-center">
                                       <span className="text-xs font-black text-white">
                                         {set.reps || "—"}
                                       </span>
                                     </div>
+
+                                    {/* 1RM cell */}
+                                    <div
+                                      className={`rounded-lg px-2 py-1.5 text-center ${
+                                        setORM
+                                          ? "bg-purple-500/10"
+                                          : "bg-black/10"
+                                      }`}
+                                    >
+                                      <span className="text-[10px] font-black text-purple-400">
+                                        {setORM ?? "—"}
+                                      </span>
+                                    </div>
+
+                                    {/* Completed tick */}
                                     <div
                                       className={`w-6 h-6 rounded-md flex items-center justify-center ${
                                         set.completed
@@ -380,4 +432,12 @@ export default function WorkoutHistory({
       )}
     </div>
   );
+}
+
+// ── Local display helper ───────────────────────────────────────────────────────
+
+function estimatedOneRMDisplay(weight: number, reps: number): string | null {
+  if (weight <= 0 || reps <= 0) return null;
+  const val = reps === 1 ? weight : weight * (1 + reps / 30);
+  return val.toFixed(1).replace(/\.0$/, "");
 }

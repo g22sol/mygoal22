@@ -11,6 +11,7 @@ import {
   Wind,
   Zap,
   Activity,
+  Sigma,
 } from "lucide-react";
 import {
   LineChart,
@@ -22,7 +23,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { ChartPoint, SavedSession, SprintEntry } from "../types";
-import { gymSeries, getStats, sprintSeries } from "../lib/utils";
+import { gymSeries, getStats, sprintSeries, oneRMSeries } from "../lib/utils";
 
 // ── Custom tooltip ─────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ function CustomTooltip({
   );
 }
 
-// ── Individual chart card ──────────────────────────────────────────────────────
+// ── Progress chart card ────────────────────────────────────────────────────────
 
 function ProgressCard({
   title,
@@ -58,6 +59,7 @@ function ProgressCard({
   higherIsBetter,
   icon: Icon,
   accentColor = "#ff6a00",
+  subtitle,
 }: {
   title: string;
   unit: string;
@@ -65,6 +67,7 @@ function ProgressCard({
   higherIsBetter: boolean;
   icon: React.ElementType;
   accentColor?: string;
+  subtitle?: string;
 }) {
   const { pb, latest, diff } = getStats(data, higherIsBetter);
   const hasData = data.length > 1;
@@ -76,10 +79,13 @@ function ProgressCard({
     <div className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
       <div
         className="absolute top-0 left-0 right-0 h-[2px]"
-        style={{ background: `linear-gradient(to right, ${accentColor}, transparent)` }}
+        style={{
+          background: `linear-gradient(to right, ${accentColor}, transparent)`,
+        }}
       />
       <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -87,13 +93,24 @@ function ProgressCard({
             >
               <Icon className="w-3.5 h-3.5" style={{ color: accentColor }} />
             </div>
-            <p className="text-xs font-black uppercase tracking-widest text-white">{title}</p>
+            <p className="text-xs font-black uppercase tracking-widest text-white">
+              {title}
+            </p>
           </div>
           <span className="text-[10px] font-bold text-neutral-500 bg-white/5 px-2 py-0.5 rounded-full">
             {unit}
           </span>
         </div>
 
+        {/* Optional subtitle */}
+        {subtitle && (
+          <p className="text-[10px] text-neutral-600 font-semibold mb-3 ml-9">
+            {subtitle}
+          </p>
+        )}
+        {!subtitle && <div className="mb-3" />}
+
+        {/* Stats row */}
         {hasAny ? (
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="bg-white/5 rounded-xl p-3 text-center">
@@ -134,8 +151,12 @@ function ProgressCard({
               </p>
               <div className="flex items-center justify-center gap-0.5">
                 {improved && <TrendingUp className="w-3 h-3 text-emerald-400" />}
-                {regressed && <TrendingDown className="w-3 h-3 text-red-400" />}
-                {!improved && !regressed && <Minus className="w-3 h-3 text-neutral-500" />}
+                {regressed && (
+                  <TrendingDown className="w-3 h-3 text-red-400" />
+                )}
+                {!improved && !regressed && (
+                  <Minus className="w-3 h-3 text-neutral-500" />
+                )}
                 <p
                   className={`text-lg font-black ${
                     improved
@@ -158,9 +179,13 @@ function ProgressCard({
           </div>
         )}
 
+        {/* Chart */}
         {hasData ? (
           <ResponsiveContainer width="100%" height={120}>
-            <LineChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
+            >
               <XAxis
                 dataKey="label"
                 tick={{ fill: "#555", fontSize: 9, fontWeight: 700 }}
@@ -218,6 +243,7 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
   const onBallData = sprintSeries(sprints, "onBallSpeed");
   const offBallData = sprintSeries(sprints, "offBallSpeed");
   const frontSquatData = gymSeries(history, "Front Squat");
+  const frontSquat1RMData = oneRMSeries(history, "Front Squat");
 
   const topSpeedPB = topSpeedData.length
     ? Math.max(...topSpeedData.map((d) => d.value))
@@ -228,10 +254,14 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
   const squatPB = frontSquatData.length
     ? Math.max(...frontSquatData.map((d) => d.value))
     : null;
+  const squat1RMPB = frontSquat1RMData.length
+    ? Math.max(...frontSquat1RMData.map((d) => d.value))
+    : null;
 
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
 
+      {/* Header */}
       <header className="px-5 pt-10 pb-5 flex items-center gap-4">
         <button
           onClick={onBack}
@@ -240,7 +270,9 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1">
-          <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold">MyGoal22</p>
+          <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold">
+            MyGoal22
+          </p>
           <h1 className="text-lg font-black tracking-tight">Progress Analytics</h1>
         </div>
       </header>
@@ -268,7 +300,7 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
       </div>
 
       {/* PB highlights */}
-      {(topSpeedPB || yardPB || squatPB) && (
+      {(topSpeedPB || yardPB || squatPB || squat1RMPB) && (
         <div className="mx-5 mb-5 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
           <div className="p-4">
@@ -312,11 +344,23 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
                   </p>
                 </div>
               )}
+              {squat1RMPB && (
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2">
+                  <p className="text-[9px] text-purple-400 font-bold uppercase tracking-wider">
+                    Squat ~1RM
+                  </p>
+                  <p className="text-sm font-black text-white">
+                    {squat1RMPB.toFixed(1).replace(/\.0$/, "")}{" "}
+                    <span className="text-neutral-500 text-[10px]">kg</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
+      {/* Sprint section label */}
       <div className="px-5 mb-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
           Sprint Performance
@@ -356,12 +400,14 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
         accentColor="#8b5cf6"
       />
 
+      {/* Gym section label */}
       <div className="px-5 mb-3 mt-2">
         <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
           Gym Strength
         </p>
       </div>
 
+      {/* Front Squat — actual weight lifted */}
       <ProgressCard
         title="Front Squat"
         unit="kg"
@@ -369,6 +415,18 @@ export default function ProgressAnalytics({ sprints, history, onBack }: Props) {
         higherIsBetter
         icon={Dumbbell}
         accentColor="#10b981"
+        subtitle="Best weight logged per session"
+      />
+
+      {/* Front Squat — estimated 1RM */}
+      <ProgressCard
+        title="Front Squat — Est. 1RM"
+        unit="kg"
+        data={frontSquat1RMData}
+        higherIsBetter
+        icon={Sigma}
+        accentColor="#a855f7"
+        subtitle="Epley formula: weight × (1 + reps / 30)"
       />
 
       <div className="px-5 mb-6">
