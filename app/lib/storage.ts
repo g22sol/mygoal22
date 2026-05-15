@@ -1,17 +1,28 @@
-/**
- * storage.ts
- */
-
 import { supabase } from "./supabase";
-import { DEFAULT_TEMPLATE, HISTORY_KEY, SPRINT_KEY, TEMPLATE_KEY } from "../constants";
-import type { ExerciseTemplate, SavedSession, SprintEntry } from "../types";
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_SCHEDULE,
+  HISTORY_KEY,
+  SPRINT_KEY,
+  TEMPLATE_KEY,
+  SCHEDULE_KEY,
+} from "../constants";
+import type {
+  ExerciseTemplate,
+  SavedSession,
+  SprintEntry,
+  ScheduleDay,
+} from "../types";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 async function getUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.id ?? null;
 }
 
-// WORKOUT TEMPLATE
+// ── WORKOUT TEMPLATE ───────────────────────────────────────────────────────────
+
 export async function loadTemplate(): Promise<ExerciseTemplate[]> {
   const userId = await getUserId();
 
@@ -52,7 +63,8 @@ export async function saveTemplate(exercises: ExerciseTemplate[]): Promise<void>
   if (error) console.error("[saveTemplate] Supabase error:", error.message);
 }
 
-// WORKOUT HISTORY
+// ── WORKOUT HISTORY ────────────────────────────────────────────────────────────
+
 export async function loadHistory(): Promise<SavedSession[]> {
   const userId = await getUserId();
 
@@ -70,7 +82,6 @@ export async function loadHistory(): Promise<SavedSession[]> {
         title: row.title,
         exercises: row.exercises,
       }));
-
       localStorage.setItem(HISTORY_KEY, JSON.stringify(sessions));
       return sessions;
     }
@@ -101,6 +112,7 @@ export async function saveSession(
   if (!userId) return updated;
 
   const { error } = await supabase.from("workout_history").insert({
+    id: session.id,
     user_id: userId,
     title: session.title,
     exercises: session.exercises,
@@ -133,7 +145,8 @@ export async function deleteSession(
   return updated;
 }
 
-// SPRINT HISTORY
+// ── SPRINT HISTORY ─────────────────────────────────────────────────────────────
+
 function rowToSprint(row: Record<string, unknown>): SprintEntry {
   return {
     id: row.id as string,
@@ -151,6 +164,7 @@ function rowToSprint(row: Record<string, unknown>): SprintEntry {
 
 function sprintToRow(entry: SprintEntry, userId: string) {
   return {
+    id: entry.id,
     user_id: userId,
     date: entry.date,
     top_speed: entry.topSpeed !== "" ? parseFloat(entry.topSpeed) : null,
@@ -227,4 +241,18 @@ export async function deleteSprint(
   if (error) console.error("[deleteSprint] Supabase error:", error.message);
 
   return updated;
+}
+
+// ── WEEKLY SCHEDULE ────────────────────────────────────────────────────────────
+
+export function loadSchedule(): ScheduleDay[] {
+  try {
+    const raw = localStorage.getItem(SCHEDULE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return DEFAULT_SCHEDULE;
+}
+
+export function saveSchedule(schedule: ScheduleDay[]): void {
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(schedule));
 }

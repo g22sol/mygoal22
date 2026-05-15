@@ -8,8 +8,9 @@ import type {
   SavedSession,
   SprintEntry,
   ViewName,
+  ScheduleDay,
 } from "./types";
-import { DEFAULT_TEMPLATE } from "./constants";
+import { DEFAULT_TEMPLATE, EMPTY_SPRINT } from "./constants";
 import {
   loadTemplate,
   saveTemplate,
@@ -19,11 +20,12 @@ import {
   loadSprints,
   saveSprint,
   deleteSprint,
+  loadSchedule,
 } from "./lib/storage";
 import { getLastSession, getLatestSprint, nextId } from "./lib/utils";
+import { supabase } from "./lib/supabase";
 import { buildPRData, getRecentPRs } from "./lib/prDetection";
 import type { ExercisePR } from "./lib/prDetection";
-import { supabase } from "./lib/supabase";
 
 import LoginScreen from "./components/LoginScreen";
 import BottomNav from "./components/BottomNav";
@@ -33,103 +35,92 @@ import WorkoutHistory from "./components/WorkoutHistory";
 import TemplateEditor from "./components/TemplateEditor";
 import SprintTracker from "./components/SprintTracker";
 import ProgressAnalytics from "./components/ProgressAnalytics";
+import ScheduleEditor from "./components/ScheduleEditor";
 
 type AuthState = "loading" | "unauthenticated" | "authenticated";
+type ExtendedView = ViewName | "schedule_editor";
 
 export default function Page() {
+  // ── Auth ───────────────────────────────────────────────────────────────────
   const [authState, setAuthState] = useState<AuthState>("loading");
-  const [session, setSession] = useState<Session | null>(null);
 
-  const [view, setView] = useState<ViewName>("dashboard");
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthState(data.session ? "authenticated" : "unauthenticated");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
+      setAuthState(s ? "authenticated" : "unauthenticated");
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => { await supabase.auth.signOut(); };
+
+  // ── App state ──────────────────────────────────────────────────────────────
+  const [view, setView] = useState<ExtendedView>("dashboard");
   const [touchesComplete, setTouchesComplete] = useState(false);
   const [template, setTemplate] = useState<ExerciseTemplate[]>(DEFAULT_TEMPLATE);
   const [history, setHistory] = useState<SavedSession[]>([]);
   const [sprints, setSprints] = useState<SprintEntry[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [draft, setDraft] = useState<ExerciseTemplate[]>([]);
   const [templateSaved, setTemplateSaved] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const s = data.session;
-      setSession(s);
-      setAuthState(s ? "authenticated" : "unauthenticated");
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setAuthState(s ? "authenticated" : "unauthenticated");
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
     if (authState !== "authenticated") return;
-
     async function loadAll() {
-      if (localStorage.getItem("touches_complete") === "true") {
-        setTouchesComplete(true);
-      }
-
+      if (localStorage.getItem("touches_complete") === "true") setTouchesComplete(true);
       const [tpl, hist, sprts] = await Promise.all([
         loadTemplate(),
         loadHistory(),
         loadSprints(),
       ]);
-
       setTemplate(tpl);
       setHistory(hist);
       setSprints(sprts);
+      setSchedule(loadSchedule());
     }
-
     loadAll();
   }, [authState]);
 
   const lastSession = getLastSession(history);
   const latestSprint = getLatestSprint(sprints);
 
-  const { prMap, sessionPRs } = useMemo(
-    () => buildPRData(history),
-    [history]
-  );
-
+  const { prMap, sessionPRs } = useMemo(() => buildPRData(history), [history]);
   const recentPRs: ExercisePR[] = useMemo(
     () => getRecentPRs(history, prMap, sessionPRs, 3),
     [history, prMap, sessionPRs]
   );
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setView("dashboard");
-  };
-
+  // ── Touches ────────────────────────────────────────────────────────────────
   const handleTouchesComplete = () => {
     setTouchesComplete(true);
     localStorage.setItem("touches_complete", "true");
   };
 
-  const handleStartSession = () => {
-    setView("session");
-  };
+  // ── Session ────────────────────────────────────────────────────────────────
+  const handleStartSession = () => setView("session");
 
   const handleFinishSession = async (savedExercises: SavedExercise[]) => {
+    const activeDay = schedule.find((d) => d.active);
     const s: SavedSession = {
-      id: `${Date.now()}`,
+      id: crypto.randomUUID(),
       date: new Date().toISOString(),
-      title: "Acceleration + Lowers",
+      title: activeDay?.workout ?? "Acceleration + Lowers",
       exercises: savedExercises,
     };
-
     const updated = await saveSession(s, history);
     setHistory(updated);
     setView("dashboard");
   };
 
+  // ── History ────────────────────────────────────────────────────────────────
   const handleDeleteSession = async (id: string) => {
     const updated = await deleteSession(id, history);
     setHistory(updated);
   };
 
+  // ── Template ───────────────────────────────────────────────────────────────
   const handleOpenTemplate = () => {
     setDraft(template.map((e) => ({ ...e })));
     setTemplateSaved(false);
@@ -139,7 +130,7 @@ export default function Page() {
   const handleDraftChange = (
     id: number,
     field: keyof ExerciseTemplate,
-    value: string | number
+    value: string | number | null
   ) =>
     setDraft((prev) =>
       prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
@@ -148,7 +139,7 @@ export default function Page() {
   const handleAddExercise = () =>
     setDraft((prev) => [
       ...prev,
-      { id: nextId(prev), name: "New Exercise", sets: 3, reps: 10 },
+      { id: nextId(prev), name: "New Exercise", sets: 3, reps: 10, supersetGroup: null },
     ]);
 
   const handleRemoveExercise = (id: number) =>
@@ -161,13 +152,13 @@ export default function Page() {
       sets: Math.max(1, e.sets),
       reps: Math.max(1, e.reps),
     }));
-
     setTemplate(cleaned);
     await saveTemplate(cleaned);
     setTemplateSaved(true);
     setTimeout(() => setView("dashboard"), 700);
   };
 
+  // ── Sprints ────────────────────────────────────────────────────────────────
   const handleSaveSprint = async (entry: Omit<SprintEntry, "id">) => {
     const newEntry: SprintEntry = { id: `${Date.now()}`, ...entry };
     const updated = await saveSprint(newEntry, sprints);
@@ -179,6 +170,16 @@ export default function Page() {
     setSprints(updated);
   };
 
+  // ── Schedule ───────────────────────────────────────────────────────────────
+  const handleScheduleSave = (updated: ScheduleDay[]) => {
+    setSchedule(updated);
+    setView("dashboard");
+  };
+
+  // ── Nav ────────────────────────────────────────────────────────────────────
+  const showNav = ["dashboard", "history", "sprint", "progress"].includes(view);
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (authState === "loading") {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -198,12 +199,7 @@ export default function Page() {
     return <LoginScreen onAuthenticated={() => setAuthState("authenticated")} />;
   }
 
-  const showNav =
-    view === "dashboard" ||
-    view === "history" ||
-    view === "sprint" ||
-    view === "progress";
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   const renderView = () => {
     switch (view) {
       case "session":
@@ -215,7 +211,6 @@ export default function Page() {
             onFinishSession={handleFinishSession}
           />
         );
-
       case "history":
         return (
           <WorkoutHistory
@@ -225,7 +220,6 @@ export default function Page() {
             onStartSession={handleStartSession}
           />
         );
-
       case "template":
         return (
           <TemplateEditor
@@ -238,7 +232,6 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
-
       case "sprint":
         return (
           <SprintTracker
@@ -248,7 +241,6 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
-
       case "progress":
         return (
           <ProgressAnalytics
@@ -257,7 +249,14 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
-
+      case "schedule_editor":
+        return (
+          <ScheduleEditor
+            schedule={schedule}
+            onSave={handleScheduleSave}
+            onBack={() => setView("dashboard")}
+          />
+        );
       case "dashboard":
       default:
         return (
@@ -267,11 +266,13 @@ export default function Page() {
             latestSprint={latestSprint}
             touchesComplete={touchesComplete}
             recentPRs={recentPRs}
+            schedule={schedule}
             onStartSession={handleStartSession}
             onOpenTemplate={handleOpenTemplate}
             onTouchesComplete={handleTouchesComplete}
-            onNavigate={setView}
+            onNavigate={(v) => setView(v)}
             onLogout={handleLogout}
+            onEditSchedule={() => setView("schedule_editor")}
           />
         );
     }
@@ -280,7 +281,9 @@ export default function Page() {
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white flex justify-center">
       {renderView()}
-      {showNav && <BottomNav current={view} onNavigate={setView} />}
+      {showNav && (
+        <BottomNav current={view as ViewName} onNavigate={(v) => setView(v)} />
+      )}
     </main>
   );
 }

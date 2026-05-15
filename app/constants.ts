@@ -7,11 +7,12 @@ import {
   Activity,
   TrendingUp,
 } from "lucide-react";
-import type { ExerciseTemplate, SprintEntry, SprintField } from "./types";
+import type { ExerciseTemplate, SprintEntry, SprintField, ScheduleDay } from "./types";
 
 export const TEMPLATE_KEY = "workout_template";
 export const HISTORY_KEY = "workout_history";
 export const SPRINT_KEY = "sprint_history";
+export const SCHEDULE_KEY = "workout_schedule";
 
 export const DEFAULT_TEMPLATE: ExerciseTemplate[] = [
   { id: 1, name: "Front Squat", sets: 4, reps: 6 },
@@ -42,7 +43,7 @@ export const EMPTY_SPRINT: Omit<SprintEntry, "id"> = {
   notes: "",
 };
 
-export const WEEK_SCHEDULE = [
+export const DEFAULT_SCHEDULE: ScheduleDay[] = [
   { day: "Mon", workout: "Acceleration + Lowers", active: true },
   { day: "Tue", workout: "Upper", active: false },
   { day: "Wed", workout: "Recovery", active: false },
@@ -51,3 +52,6 @@ export const WEEK_SCHEDULE = [
   { day: "Sat", workout: "Top Speed", active: false },
   { day: "Sun", workout: "Recovery", active: false },
 ];
+
+// Legacy static export kept for any files that still import WEEK_SCHEDULE
+export const WEEK_SCHEDULE = DEFAULT_SCHEDULE;

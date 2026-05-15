@@ -3,6 +3,7 @@ export type ExerciseTemplate = {
   name: string;
   sets: number;
   reps: number;
+  supersetGroup?: string | null; // "A" | "B" | "C" | null
 };
 
 export type Exercise = ExerciseTemplate & {
@@ -10,7 +11,6 @@ export type Exercise = ExerciseTemplate & {
   completed: boolean;
 };
 
-// ── NEW: one row per set ─────────────────────────────────────────────────────
 export type SetLog = {
   setNumber: number;
   weight: string;
@@ -18,14 +18,13 @@ export type SetLog = {
   completed: boolean;
 };
 
-// Updated: exercises now carry per-set data.
-// `weight` kept as optional string for backwards compat with old sessions.
 export type SavedExercise = {
   name: string;
   sets: number;
   reps: number;
-  weight?: string;       // legacy — single weight from old sessions
-  setLogs?: SetLog[];    // new — per-set data
+  weight?: string;
+  setLogs?: SetLog[];
+  supersetGroup?: string | null;
 };
 
 export type SavedSession = {
@@ -67,3 +66,20 @@ export type ViewName =
   | "history"
   | "sprint"
   | "progress";
+
+// ── Weekly schedule types ──────────────────────────────────────────────────────
+
+export type WeekDay =
+  | "Mon"
+  | "Tue"
+  | "Wed"
+  | "Thu"
+  | "Fri"
+  | "Sat"
+  | "Sun";
+
+export type ScheduleDay = {
+  day: WeekDay;
+  workout: string;
+  active: boolean;
+};

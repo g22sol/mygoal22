@@ -16,14 +16,15 @@ import {
   LogOut,
   Trophy,
   Zap,
+  Pencil,
 } from "lucide-react";
 import type {
   ExerciseTemplate,
   SavedSession,
   SprintEntry,
   ViewName,
+  ScheduleDay,
 } from "../types";
-import { WEEK_SCHEDULE } from "../constants";
 import { formatDate } from "../lib/utils";
 import type { ExercisePR } from "../lib/prDetection";
 
@@ -32,12 +33,14 @@ type Props = {
   lastSession: SavedSession | null;
   latestSprint: SprintEntry | null;
   touchesComplete: boolean;
-  recentPRs: ExercisePR[];            // ← new
+  recentPRs: ExercisePR[];
+  schedule: ScheduleDay[];
   onStartSession: () => void;
   onOpenTemplate: () => void;
   onTouchesComplete: () => void;
   onNavigate: (v: ViewName) => void;
   onLogout: () => void;
+  onEditSchedule: () => void;
 };
 
 const SPRINT_METRIC_DEFS = [
@@ -53,16 +56,18 @@ export default function Dashboard({
   latestSprint,
   touchesComplete,
   recentPRs,
+  schedule,
   onStartSession,
   onOpenTemplate,
   onTouchesComplete,
   onNavigate,
   onLogout,
+  onEditSchedule,
 }: Props) {
   return (
     <div className="w-full max-w-md min-h-screen pb-24">
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <header className="px-5 pt-10 pb-5 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -91,18 +96,18 @@ export default function Dashboard({
         </div>
       </header>
 
-      {/* ── Greeting ──────────────────────────────────────────────────────── */}
+      {/* Greeting */}
       <section className="px-5 mb-5">
         <div className="flex items-center gap-2 text-[#ff6a00] text-xs font-bold uppercase tracking-widest">
           <Activity className="w-4 h-4" />
-          Starting May 20
+          {schedule.find((d) => d.active)?.workout ?? "Starting soon"}
         </div>
         <h2 className="text-2xl font-black mt-2">
           Ready to <span className="text-[#ff6a00]">dominate</span>, Karik?
         </h2>
       </section>
 
-      {/* ── Today's Training ──────────────────────────────────────────────── */}
+      {/* Today's Training */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
         <div className="p-5">
@@ -114,7 +119,9 @@ export default function Dashboard({
               SCHEDULED
             </span>
           </div>
-          <h3 className="text-xl font-black mt-2">Acceleration + Lowers</h3>
+          <h3 className="text-xl font-black mt-2">
+            {schedule.find((d) => d.active)?.workout ?? "Acceleration + Lowers"}
+          </h3>
           <div className="flex flex-wrap gap-2 mt-3 mb-3">
             <span className="text-xs bg-white/5 text-neutral-400 px-3 py-1 rounded-full">
               {template.length} Exercise{template.length !== 1 ? "s" : ""}
@@ -133,6 +140,11 @@ export default function Dashboard({
                   <span className="text-xs font-semibold text-neutral-300">
                     {ex.name}
                   </span>
+                  {ex.supersetGroup && (
+                    <span className="text-[8px] font-black text-neutral-600 bg-white/5 px-1 rounded">
+                      {ex.supersetGroup}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[10px] text-neutral-500 font-semibold">
                   {ex.sets}×{ex.reps}
@@ -158,7 +170,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Recent PRs ────────────────────────────────────────────────────── */}
+      {/* Recent PRs */}
       {recentPRs.length > 0 && (
         <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-amber-400/30 overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-400 via-[#ff6a00] to-transparent" />
@@ -196,7 +208,7 @@ export default function Dashboard({
         </section>
       )}
 
-      {/* ── Last Session ──────────────────────────────────────────────────── */}
+      {/* Last Session */}
       {lastSession && (
         <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 to-transparent" />
@@ -227,8 +239,8 @@ export default function Dashboard({
                         .filter((n) => !isNaN(n))
                     )
                   : parseFloat(ex.weight ?? "");
-
-                const displayWeight = isNaN(best) || best === -Infinity ? null : best;
+                const displayWeight =
+                  isNaN(best) || best === -Infinity ? null : best;
 
                 return (
                   <div
@@ -260,7 +272,7 @@ export default function Dashboard({
         </section>
       )}
 
-      {/* ── 10K Touches ───────────────────────────────────────────────────── */}
+      {/* 10K Touches */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ee0979] via-[#ff6a00] to-transparent" />
         <div className="p-5">
@@ -308,7 +320,7 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Sprint Metrics ────────────────────────────────────────────────── */}
+      {/* Sprint Metrics */}
       <section className="mx-5 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-black uppercase tracking-widest">
@@ -354,13 +366,22 @@ export default function Dashboard({
         </div>
       </section>
 
-      {/* ── Weekly Schedule ───────────────────────────────────────────────── */}
+      {/* Weekly Schedule */}
       <section className="mx-5 mb-6">
-        <h3 className="text-sm font-black uppercase tracking-widest mb-3">
-          Weekly Schedule
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-black uppercase tracking-widest">
+            Weekly Schedule
+          </h3>
+          <button
+            onClick={onEditSchedule}
+            className="flex items-center gap-1 text-[10px] font-bold text-neutral-500 hover:text-[#ff6a00] bg-white/5 hover:bg-[#ff6a00]/10 px-2 py-1 rounded-lg transition-all"
+          >
+            <Pencil className="w-2.5 h-2.5" />
+            Edit
+          </button>
+        </div>
         <div className="bg-[#111111] border border-white/10 rounded-2xl overflow-hidden">
-          {WEEK_SCHEDULE.map((item) => (
+          {schedule.map((item) => (
             <div
               key={item.day}
               className={`flex items-center gap-3 px-4 py-3 border-b border-white/5 last:border-b-0 ${
