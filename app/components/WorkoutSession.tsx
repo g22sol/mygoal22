@@ -11,6 +11,8 @@ import {
   Pause,
   RotateCcw,
   X,
+  RotateCcw as DiscardIcon,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ExerciseTemplate, SavedSession, SavedExercise, SetLog } from "../types";
@@ -38,6 +40,8 @@ type LiveExercise = {
 
 const REST_OPTIONS = [60, 90, 120, 180] as const;
 type RestOption = (typeof REST_OPTIONS)[number];
+
+const AUTOSAVE_KEY = "mygoal22_autosave_session";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -77,12 +81,63 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// ── Rest Timer Component ───────────────────────────────────────────────────────
+// ── Autosave helpers ───────────────────────────────────────────────────────────
+
+type AutosavePayload = {
+  templateSnapshot: { id: number; name: string }[];
+  exercises: LiveExercise[];
+  savedAt: string;
+};
+
+function readAutosave(): AutosavePayload | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AutosavePayload;
+  } catch {
+    return null;
+  }
+}
+
+function writeAutosave(
+  template: ExerciseTemplate[],
+  exercises: LiveExercise[]
+): void {
+  try {
+    const payload: AutosavePayload = {
+      templateSnapshot: template.map(({ id, name }) => ({ id, name })),
+      exercises,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
+function clearAutosave(): void {
+  try {
+    localStorage.removeItem(AUTOSAVE_KEY);
+  } catch {}
+}
+
+/**
+ * Returns true if the saved snapshot matches the current template
+ * (same exercise ids in same order). We don't restore a session
+ * if the template has since changed.
+ */
+function snapshotMatchesTemplate(
+  snapshot: AutosavePayload["templateSnapshot"],
+  template: ExerciseTemplate[]
+): boolean {
+  if (snapshot.length !== template.length) return false;
+  return snapshot.every((s, i) => s.id === template[i].id && s.name === template[i].name);
+}
+
+// ── Rest Timer ─────────────────────────────────────────────────────────────────
 
 type RestTimerProps = {
   defaultDuration: RestOption;
   onDurationChange: (d: RestOption) => void;
-  triggerKey: number; // increment to auto-start a new rest
+  triggerKey: number;
   onDismiss: () => void;
 };
 
@@ -98,7 +153,6 @@ function RestTimer({
   const [finished, setFinished] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Auto-start whenever triggerKey increments (a set was just completed)
   useEffect(() => {
     if (triggerKey === 0) return;
     setRemaining(duration);
@@ -106,7 +160,6 @@ function RestTimer({
     setRunning(true);
   }, [triggerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown tick
   useEffect(() => {
     if (running) {
       intervalRef.current = setInterval(() => {
@@ -141,8 +194,6 @@ function RestTimer({
   };
 
   const progress = remaining / duration;
-
-  // Arc geometry
   const size = 100;
   const strokeWidth = 7;
   const r = (size - strokeWidth) / 2;
@@ -157,7 +208,6 @@ function RestTimer({
           : "bg-[#111111] border-white/10"
       }`}
     >
-      {/* Top accent */}
       <div
         className={`absolute top-0 left-0 right-0 h-[2px] ${
           finished
@@ -167,15 +217,11 @@ function RestTimer({
             : "bg-gradient-to-r from-[#ff6a00] to-transparent"
         }`}
       />
-
       <div className="p-4">
-        {/* Header row */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Timer
-              className={`w-4 h-4 ${
-                finished ? "text-emerald-400" : "text-[#ff6a00]"
-              }`}
+              className={`w-4 h-4 ${finished ? "text-emerald-400" : "text-[#ff6a00]"}`}
             />
             <p className="text-xs font-black uppercase tracking-widest text-white">
               Rest Timer
@@ -199,9 +245,7 @@ function RestTimer({
           </button>
         </div>
 
-        {/* Main content: arc + controls */}
         <div className="flex items-center gap-4">
-          {/* SVG arc countdown */}
           <div className="relative flex-shrink-0">
             <svg
               width={size}
@@ -209,7 +253,6 @@ function RestTimer({
               viewBox={`0 0 ${size} ${size}`}
               style={{ transform: "rotate(-90deg)" }}
             >
-              {/* Track */}
               <circle
                 cx={size / 2}
                 cy={size / 2}
@@ -218,7 +261,6 @@ function RestTimer({
                 stroke="#1f1f1f"
                 strokeWidth={strokeWidth}
               />
-              {/* Progress arc */}
               <circle
                 cx={size / 2}
                 cy={size / 2}
@@ -232,7 +274,6 @@ function RestTimer({
                 style={{ transition: "stroke-dashoffset 0.9s linear, stroke 0.3s" }}
               />
             </svg>
-            {/* Time in centre */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span
                 className={`text-xl font-black tabular-nums ${
@@ -244,9 +285,7 @@ function RestTimer({
             </div>
           </div>
 
-          {/* Right column: controls + duration picker */}
           <div className="flex-1 flex flex-col gap-3">
-            {/* Play / Pause / Reset */}
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -284,7 +323,6 @@ function RestTimer({
               </button>
             </div>
 
-            {/* Duration selector */}
             <div>
               <p className="text-[9px] text-neutral-600 uppercase tracking-wider font-bold mb-1.5">
                 Rest duration
@@ -301,11 +339,6 @@ function RestTimer({
                     }`}
                   >
                     {opt >= 60 ? `${opt / 60}m` : `${opt}s`}
-                    {opt === 90 && duration !== opt && (
-                      <span className="block text-[7px] text-neutral-600 leading-none">
-                        default
-                      </span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -313,7 +346,6 @@ function RestTimer({
           </div>
         </div>
 
-        {/* Finished nudge */}
         {finished && (
           <div className="mt-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2 text-center">
             <p className="text-xs font-black text-emerald-400">
@@ -344,17 +376,57 @@ export default function WorkoutSession({
   onFinishSession,
 }: Props) {
   const [liveExercises, setLiveExercises] = useState<LiveExercise[]>([]);
+  const [restored, setRestored] = useState(false);
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false);
 
   // Rest timer state
   const [restTrigger, setRestTrigger] = useState(0);
   const [restDuration, setRestDuration] = useState<RestOption>(90);
   const [showTimer, setShowTimer] = useState(false);
 
-  useEffect(() => {
-    setLiveExercises(buildLiveExercises(template, lastSession));
-  }, [template, lastSession]);
+  // ── Init: restore or build fresh ────────────────────────────────────────────
 
-  // ── Set mutations ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const saved = readAutosave();
+
+    if (saved && snapshotMatchesTemplate(saved.templateSnapshot, template)) {
+      // Restore — preserve the collapsed state from the save
+      setLiveExercises(saved.exercises);
+      setRestored(true);
+      setShowRestoreBanner(true);
+    } else {
+      setLiveExercises(buildLiveExercises(template, lastSession));
+      setRestored(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Autosave on every change ─────────────────────────────────────────────────
+
+  // We use a ref to skip the very first render write (that's the restore read)
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (liveExercises.length === 0) return;
+
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    writeAutosave(template, liveExercises);
+  }, [liveExercises]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Discard handler ──────────────────────────────────────────────────────────
+
+  const handleDiscard = () => {
+    clearAutosave();
+    setLiveExercises(buildLiveExercises(template, lastSession));
+    setRestored(false);
+    setShowRestoreBanner(false);
+    isFirstRender.current = true; // prevent immediate re-write on rebuild
+  };
+
+  // ── Set mutations ────────────────────────────────────────────────────────────
 
   const updateSet = (
     exId: number,
@@ -380,11 +452,10 @@ export default function WorkoutSession({
     setLiveExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exId) return ex;
+        const wasCompleted = ex.sets.find((s) => s.setNumber === setNum)?.completed;
         const updated = ex.sets.map((s) =>
           s.setNumber === setNum ? { ...s, completed: !s.completed } : s
         );
-        // Start rest timer when completing (not un-completing) a set
-        const wasCompleted = ex.sets.find((s) => s.setNumber === setNum)?.completed;
         if (!wasCompleted) {
           setShowTimer(true);
           setRestTrigger((t) => t + 1);
@@ -412,7 +483,7 @@ export default function WorkoutSession({
     );
   };
 
-  // ── Derived ────────────────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────────
 
   const totalSets = liveExercises.reduce((n, ex) => n + ex.sets.length, 0);
   const completedSets = liveExercises.reduce(
@@ -427,9 +498,10 @@ export default function WorkoutSession({
       return !!e.weight;
     }) ?? false;
 
-  // ── Finish ─────────────────────────────────────────────────────────────────
+  // ── Finish ───────────────────────────────────────────────────────────────────
 
   const handleFinish = () => {
+    clearAutosave();
     const saved: SavedExercise[] = liveExercises.map((ex) => ({
       name: ex.name,
       sets: ex.targetSets,
@@ -446,7 +518,7 @@ export default function WorkoutSession({
     onFinishSession(saved);
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="w-full max-w-md min-h-screen pb-10">
@@ -482,7 +554,46 @@ export default function WorkoutSession({
         />
       </div>
 
-      {/* Rest Timer — shown inline at top after first set complete */}
+      {/* ── Restore banner ──────────────────────────────────────────────────── */}
+      {showRestoreBanner && (
+        <div className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-[#ff6a00]/30 overflow-hidden relative">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] to-transparent" />
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#ff6a00]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4 text-[#ff6a00]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-white">
+                  Unfinished session restored
+                </p>
+                <p className="text-[11px] text-neutral-500 font-semibold mt-0.5">
+                  Your last session was automatically saved. Continue where you
+                  left off, or start fresh.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setShowRestoreBanner(false)}
+                    className="flex-1 bg-[#ff6a00] hover:bg-[#ff7a1a] active:scale-[0.98] transition-all rounded-xl py-2.5 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-[#ff6a00]/20"
+                  >
+                    <Play className="w-3 h-3" />
+                    Continue
+                  </button>
+                  <button
+                    onClick={handleDiscard}
+                    className="flex-1 bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 active:scale-[0.98] transition-all rounded-xl py-2.5 font-black text-xs flex items-center justify-center gap-1.5 text-neutral-400 hover:text-red-400"
+                  >
+                    <DiscardIcon className="w-3 h-3" />
+                    Discard
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rest Timer */}
       {showTimer && (
         <RestTimer
           defaultDuration={restDuration}
@@ -577,7 +688,6 @@ export default function WorkoutSession({
                     )}
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                   <span
                     className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
@@ -602,7 +712,6 @@ export default function WorkoutSession({
               {/* Set rows */}
               {!ex.collapsed && (
                 <div className="px-4 pb-4">
-
                   {/* Fill-all shortcut */}
                   {suggested && !exCompleted && (
                     <button
