@@ -96,16 +96,35 @@ export default function Dashboard({
         </div>
       </header>
 
-      {/* Greeting */}
-      <section className="px-5 mb-5">
-        <div className="flex items-center gap-2 text-[#ff6a00] text-xs font-bold uppercase tracking-widest">
-          <Activity className="w-4 h-4" />
-          {schedule.find((d) => d.active)?.workout ?? "Starting soon"}
-        </div>
-        <h2 className="text-2xl font-black mt-2">
-          Ready to <span className="text-[#ff6a00]">dominate</span>, Karik?
-        </h2>
-      </section>
+      {/* Verse + Quote */}
+<section className="px-5 mb-5">
+  <div className="rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
+    
+    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#ff6a00] via-[#ee0979] to-transparent" />
+
+    <div className="p-5">
+      <div className="flex items-center gap-2 text-[#ff6a00] text-[10px] font-black uppercase tracking-[0.25em] mb-3">
+        <Activity className="w-3.5 h-3.5" />
+        Daily Mindset
+      </div>
+
+      <p className="text-sm leading-relaxed font-semibold text-neutral-200">
+        “But you, take courage! Do not let your hands be weak,
+        for your work shall be rewarded.”
+      </p>
+
+      <p className="text-[11px] text-[#ff6a00] font-black uppercase tracking-widest mt-2">
+        2 Chronicles 15:7
+      </p>
+
+      <div className="w-full h-px bg-white/10 my-4" />
+
+      <p className="text-xs text-neutral-400 italic leading-relaxed">
+        “Success is the sum of small efforts, repeated day in and day out.”
+      </p>
+    </div>
+  </div>
+</section>
 
       {/* Today's Training */}
       <section className="mx-5 mb-4 rounded-2xl bg-[#111111] border border-white/10 overflow-hidden relative">
