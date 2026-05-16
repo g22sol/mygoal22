@@ -144,6 +144,16 @@ export default function Page() {
 
   const handleRemoveExercise = (id: number) =>
     setDraft((prev) => prev.filter((e) => e.id !== id));
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+  if (toIndex < 0 || toIndex >= draft.length) return;
+
+  setDraft((prev) => {
+    const next = [...prev];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  });
+};
 
   const handleSaveTemplate = async () => {
     const cleaned = draft.map((e) => ({
@@ -230,6 +240,7 @@ export default function Page() {
             onRemove={handleRemoveExercise}
             onSave={handleSaveTemplate}
             onBack={() => setView("dashboard")}
+            onReorder={handleReorder}
           />
         );
       case "sprint":

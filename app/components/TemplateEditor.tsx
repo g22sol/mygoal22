@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   Check,
+  ChevronUp,
+  ChevronDown,
   Plus,
   Save,
   Settings2,
@@ -10,7 +12,6 @@ import {
   Layers,
 } from "lucide-react";
 import type { ExerciseTemplate } from "../types";
-import { nextId } from "../lib/utils";
 
 const SUPERSET_OPTIONS = ["None", "A", "B", "C", "D"] as const;
 type SupersetOption = (typeof SUPERSET_OPTIONS)[number];
@@ -27,6 +28,7 @@ type Props = {
   onRemove: (id: number) => void;
   onSave: () => void;
   onBack: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
 };
 
 // ── Stepper ────────────────────────────────────────────────────────────────────
@@ -62,7 +64,7 @@ function Stepper({
             const v = parseInt(e.target.value, 10);
             if (!isNaN(v)) onChange(Math.max(min, v));
           }}
-          className="w-10 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-2"
+          className="flex-1 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-2"
         />
         <button
           onClick={() => onChange(value + 1)}
@@ -85,10 +87,12 @@ export default function TemplateEditor({
   onRemove,
   onSave,
   onBack,
+  onReorder,
 }: Props) {
   return (
     <div className="w-full max-w-md min-h-screen pb-10">
 
+      {/* Header */}
       <header className="px-5 pt-10 pb-5 flex items-center gap-4">
         <button
           onClick={onBack}
@@ -122,7 +126,12 @@ export default function TemplateEditor({
 
         {draft.map((ex, index) => {
           const currentGroup =
-            ex.supersetGroup == null ? "None" : (ex.supersetGroup as SupersetOption);
+            ex.supersetGroup == null
+              ? "None"
+              : (ex.supersetGroup as SupersetOption);
+
+          const isFirst = index === 0;
+          const isLast = index === draft.length - 1;
 
           return (
             <div
@@ -145,13 +154,37 @@ export default function TemplateEditor({
               />
 
               <div className="p-4">
-                {/* Row: index + name input + delete */}
-                <div className="flex items-center gap-3 mb-3">
+                {/* Row: reorder + index + name + delete */}
+                <div className="flex items-center gap-2 mb-3">
+
+                  {/* Move up / down buttons */}
+                  <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <button
+                      onClick={() => onReorder(index, index - 1)}
+                      disabled={isFirst}
+                      className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed hover:bg-white/10 hover:text-white text-neutral-500"
+                      aria-label="Move up"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onReorder(index, index + 1)}
+                      disabled={isLast}
+                      className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed hover:bg-white/10 hover:text-white text-neutral-500"
+                      aria-label="Move down"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Index badge */}
                   <div className="w-7 h-7 rounded-lg bg-[#ff6a00]/10 flex items-center justify-center flex-shrink-0">
                     <span className="text-[11px] font-black text-[#ff6a00]">
                       {index + 1}
                     </span>
                   </div>
+
+                  {/* Name input */}
                   <input
                     type="text"
                     value={ex.name}
@@ -161,6 +194,8 @@ export default function TemplateEditor({
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm font-bold text-white outline-none focus:border-[#ff6a00]/50 transition-colors placeholder-neutral-600"
                     placeholder="Exercise name"
                   />
+
+                  {/* Delete */}
                   <button
                     onClick={() => onRemove(ex.id)}
                     className="w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20 active:scale-95 transition-all flex-shrink-0"
@@ -197,7 +232,7 @@ export default function TemplateEditor({
                       const colorMap: Record<SupersetOption, string> = {
                         None: active
                           ? "bg-white/10 text-white border-white/20"
-                          : "bg-white/5 text-neutral-600 border-transparent",
+                          : "bg-white/5 text-neutral-600 border-transparent hover:text-neutral-400",
                         A: active
                           ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-purple-400",
