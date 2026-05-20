@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import type { Session } from "@supabase/supabase-js";
 import type {
   ExerciseTemplate,
   SavedExercise,
@@ -9,11 +8,15 @@ import type {
   SprintEntry,
   ViewName,
   ScheduleDay,
+  WeeklyTemplate,
+  WeekDay,
 } from "./types";
-import { DEFAULT_TEMPLATE, EMPTY_SPRINT } from "./constants";
+import { DEFAULT_WEEKLY_TEMPLATE } from "./constants";
 import {
-  loadTemplate,
-  saveTemplate,
+  loadWeeklyTemplate,
+  saveWeeklyTemplate,
+  getDayTemplate,
+  setDayTemplate,
   loadHistory,
   saveSession,
   deleteSession,
@@ -59,10 +62,17 @@ export default function Page() {
   // ── App state ──────────────────────────────────────────────────────────────
   const [view, setView] = useState<ExtendedView>("dashboard");
   const [touchesComplete, setTouchesComplete] = useState(false);
-  const [template, setTemplate] = useState<ExerciseTemplate[]>(DEFAULT_TEMPLATE);
+
+  // All-days template (replaces single `template`)
+  const [weeklyTemplate, setWeeklyTemplate] = useState<WeeklyTemplate>(
+    DEFAULT_WEEKLY_TEMPLATE
+  );
+
   const [history, setHistory] = useState<SavedSession[]>([]);
   const [sprints, setSprints] = useState<SprintEntry[]>([]);
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
+
+  // Template editor draft — only for the active day's exercises
   const [draft, setDraft] = useState<ExerciseTemplate[]>([]);
   const [templateSaved, setTemplateSaved] = useState(false);
 
@@ -70,18 +80,28 @@ export default function Page() {
     if (authState !== "authenticated") return;
     async function loadAll() {
       if (localStorage.getItem("touches_complete") === "true") setTouchesComplete(true);
-      const [tpl, hist, sprts] = await Promise.all([
-        loadTemplate(),
+      const [wt, hist, sprts] = await Promise.all([
+        loadWeeklyTemplate(),
         loadHistory(),
         loadSprints(),
       ]);
-      setTemplate(tpl);
+      setWeeklyTemplate(wt);
       setHistory(hist);
       setSprints(sprts);
       setSchedule(loadSchedule());
     }
     loadAll();
   }, [authState]);
+
+  // ── Derived: active day ────────────────────────────────────────────────────
+  const activeDay: WeekDay =
+    (schedule.find((d) => d.active)?.day as WeekDay) ?? "Mon";
+
+  /** Exercises for the currently active day only. */
+  const activeTemplate: ExerciseTemplate[] = useMemo(
+    () => getDayTemplate(weeklyTemplate, activeDay),
+    [weeklyTemplate, activeDay]
+  );
 
   const lastSession = getLastSession(history);
   const latestSprint = getLatestSprint(sprints);
@@ -102,11 +122,11 @@ export default function Page() {
   const handleStartSession = () => setView("session");
 
   const handleFinishSession = async (savedExercises: SavedExercise[]) => {
-    const activeDay = schedule.find((d) => d.active);
+    const activeScheduleDay = schedule.find((d) => d.active);
     const s: SavedSession = {
-      id: crypto.randomUUID(),
+      id: `${Date.now()}`,
       date: new Date().toISOString(),
-      title: activeDay?.workout ?? "Acceleration + Lowers",
+      title: activeScheduleDay?.workout ?? "Workout",
       exercises: savedExercises,
     };
     const updated = await saveSession(s, history);
@@ -120,9 +140,10 @@ export default function Page() {
     setHistory(updated);
   };
 
-  // ── Template ───────────────────────────────────────────────────────────────
+  // ── Template (per active day) ──────────────────────────────────────────────
   const handleOpenTemplate = () => {
-    setDraft(template.map((e) => ({ ...e })));
+    // Load only the active day's exercises into draft
+    setDraft(activeTemplate.map((e) => ({ ...e })));
     setTemplateSaved(false);
     setView("template");
   };
@@ -139,21 +160,27 @@ export default function Page() {
   const handleAddExercise = () =>
     setDraft((prev) => [
       ...prev,
-      { id: nextId(prev), name: "New Exercise", sets: 3, reps: 10, supersetGroup: null },
+      {
+        id: nextId(prev),
+        name: "New Exercise",
+        sets: 3,
+        reps: 10,
+        supersetGroup: null,
+      },
     ]);
 
   const handleRemoveExercise = (id: number) =>
     setDraft((prev) => prev.filter((e) => e.id !== id));
-  const handleReorder = (fromIndex: number, toIndex: number) => {
-  if (toIndex < 0 || toIndex >= draft.length) return;
 
-  setDraft((prev) => {
-    const next = [...prev];
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
-    return next;
-  });
-};
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= draft.length) return;
+    setDraft((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
 
   const handleSaveTemplate = async () => {
     const cleaned = draft.map((e) => ({
@@ -162,8 +189,11 @@ export default function Page() {
       sets: Math.max(1, e.sets),
       reps: Math.max(1, e.reps),
     }));
-    setTemplate(cleaned);
-    await saveTemplate(cleaned);
+
+    // Write only the active day; all other days are untouched
+    const updated = setDayTemplate(weeklyTemplate, activeDay, cleaned);
+    setWeeklyTemplate(updated);
+    await saveWeeklyTemplate(updated);
     setTemplateSaved(true);
     setTimeout(() => setView("dashboard"), 700);
   };
@@ -171,13 +201,11 @@ export default function Page() {
   // ── Sprints ────────────────────────────────────────────────────────────────
   const handleSaveSprint = async (entry: Omit<SprintEntry, "id">) => {
     const newEntry: SprintEntry = { id: `${Date.now()}`, ...entry };
-    const updated = await saveSprint(newEntry, sprints);
-    setSprints(updated);
+    setSprints(await saveSprint(newEntry, sprints));
   };
 
   const handleDeleteSprint = async (id: string) => {
-    const updated = await deleteSprint(id, sprints);
-    setSprints(updated);
+    setSprints(await deleteSprint(id, sprints));
   };
 
   // ── Schedule ───────────────────────────────────────────────────────────────
@@ -186,10 +214,9 @@ export default function Page() {
     setView("dashboard");
   };
 
-  // ── Nav ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   const showNav = ["dashboard", "history", "sprint", "progress"].includes(view);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (authState === "loading") {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -209,18 +236,19 @@ export default function Page() {
     return <LoginScreen onAuthenticated={() => setAuthState("authenticated")} />;
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   const renderView = () => {
     switch (view) {
       case "session":
         return (
           <WorkoutSession
-            template={template}
+            // Pass only the active day's exercises — other days are isolated
+            template={activeTemplate}
             lastSession={lastSession}
             onBack={() => setView("dashboard")}
             onFinishSession={handleFinishSession}
           />
         );
+
       case "history":
         return (
           <WorkoutHistory
@@ -230,11 +258,14 @@ export default function Page() {
             onStartSession={handleStartSession}
           />
         );
+
       case "template":
         return (
           <TemplateEditor
+            // Draft is already scoped to the active day (set in handleOpenTemplate)
             draft={draft}
             saved={templateSaved}
+            activeDay={activeDay}
             onDraftChange={handleDraftChange}
             onAdd={handleAddExercise}
             onRemove={handleRemoveExercise}
@@ -243,6 +274,7 @@ export default function Page() {
             onReorder={handleReorder}
           />
         );
+
       case "sprint":
         return (
           <SprintTracker
@@ -252,6 +284,7 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "progress":
         return (
           <ProgressAnalytics
@@ -260,6 +293,7 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "schedule_editor":
         return (
           <ScheduleEditor
@@ -268,11 +302,13 @@ export default function Page() {
             onBack={() => setView("dashboard")}
           />
         );
+
       case "dashboard":
       default:
         return (
           <Dashboard
-            template={template}
+            // Only the active day's template reaches Dashboard
+            template={activeTemplate}
             lastSession={lastSession}
             latestSprint={latestSprint}
             touchesComplete={touchesComplete}

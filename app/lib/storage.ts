@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import {
-  DEFAULT_TEMPLATE,
+  DEFAULT_WEEKLY_TEMPLATE,
+  LEGACY_DEFAULT_TEMPLATE,
   DEFAULT_SCHEDULE,
   HISTORY_KEY,
   SPRINT_KEY,
@@ -9,6 +10,9 @@ import {
 } from "../constants";
 import type {
   ExerciseTemplate,
+  WeeklyTemplate,
+  DayTemplate,
+  WeekDay,
   SavedSession,
   SprintEntry,
   ScheduleDay,
@@ -21,9 +25,40 @@ async function getUserId(): Promise<string | null> {
   return data.session?.user?.id ?? null;
 }
 
-// ── WORKOUT TEMPLATE ───────────────────────────────────────────────────────────
+// ── Migration ──────────────────────────────────────────────────────────────────
 
-export async function loadTemplate(): Promise<ExerciseTemplate[]> {
+/**
+ * The old format stored ExerciseTemplate[] directly.
+ * Detect it and promote to WeeklyTemplate, assigning the exercises to Monday
+ * (the historical default active day).
+ */
+function migrateTemplate(raw: unknown): WeeklyTemplate {
+  // Already a WeeklyTemplate
+  if (
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    "days" in (raw as object)
+  ) {
+    return raw as WeeklyTemplate;
+  }
+
+  // Legacy: flat array — put it on Monday, fill remaining days with defaults
+  if (Array.isArray(raw)) {
+    const legacy = raw as ExerciseTemplate[];
+    return {
+      days: DEFAULT_WEEKLY_TEMPLATE.days.map((d) =>
+        d.day === "Mon" ? { ...d, exercises: legacy } : { ...d }
+      ),
+    };
+  }
+
+  return DEFAULT_WEEKLY_TEMPLATE;
+}
+
+// ── WEEKLY TEMPLATE ────────────────────────────────────────────────────────────
+
+export async function loadWeeklyTemplate(): Promise<WeeklyTemplate> {
   const userId = await getUserId();
 
   if (userId) {
@@ -34,21 +69,23 @@ export async function loadTemplate(): Promise<ExerciseTemplate[]> {
       .maybeSingle();
 
     if (!error && data?.exercises) {
-      localStorage.setItem(TEMPLATE_KEY, JSON.stringify(data.exercises));
-      return data.exercises as ExerciseTemplate[];
+      const migrated = migrateTemplate(data.exercises);
+      localStorage.setItem(TEMPLATE_KEY, JSON.stringify(migrated));
+      return migrated;
     }
   }
 
+  // localStorage fallback
   try {
     const raw = localStorage.getItem(TEMPLATE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrateTemplate(JSON.parse(raw));
   } catch {}
 
-  return DEFAULT_TEMPLATE;
+  return DEFAULT_WEEKLY_TEMPLATE;
 }
 
-export async function saveTemplate(exercises: ExerciseTemplate[]): Promise<void> {
-  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(exercises));
+export async function saveWeeklyTemplate(wt: WeeklyTemplate): Promise<void> {
+  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(wt));
 
   const userId = await getUserId();
   if (!userId) return;
@@ -56,11 +93,32 @@ export async function saveTemplate(exercises: ExerciseTemplate[]): Promise<void>
   const { error } = await supabase
     .from("workout_template")
     .upsert(
-      { user_id: userId, exercises, updated_at: new Date().toISOString() },
+      { user_id: userId, exercises: wt, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
 
-  if (error) console.error("[saveTemplate] Supabase error:", error.message);
+  if (error) console.error("[saveWeeklyTemplate] Supabase error:", error.message);
+}
+
+/** Convenience: get just the exercises for one day. */
+export function getDayTemplate(wt: WeeklyTemplate, day: WeekDay): ExerciseTemplate[] {
+  return wt.days.find((d) => d.day === day)?.exercises ?? [];
+}
+
+/** Convenience: return a new WeeklyTemplate with one day's exercises replaced. */
+export function setDayTemplate(
+  wt: WeeklyTemplate,
+  day: WeekDay,
+  exercises: ExerciseTemplate[]
+): WeeklyTemplate {
+  const allDays: WeekDay[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return {
+    days: allDays.map((d) => {
+      const existing = wt.days.find((x) => x.day === d);
+      if (d === day) return { day: d, exercises };
+      return existing ?? { day: d, exercises: [] };
+    }),
+  };
 }
 
 // ── WORKOUT HISTORY ────────────────────────────────────────────────────────────
@@ -120,7 +178,6 @@ export async function saveSession(
   });
 
   if (error) console.error("[saveSession] Supabase error:", error.message);
-
   return updated;
 }
 
@@ -141,7 +198,6 @@ export async function deleteSession(
     .eq("user_id", userId);
 
   if (error) console.error("[deleteSession] Supabase error:", error.message);
-
   return updated;
 }
 
@@ -218,7 +274,6 @@ export async function saveSprint(
     .insert(sprintToRow(entry, userId));
 
   if (error) console.error("[saveSprint] Supabase error:", error.message);
-
   return updated;
 }
 
@@ -239,7 +294,6 @@ export async function deleteSprint(
     .eq("user_id", userId);
 
   if (error) console.error("[deleteSprint] Supabase error:", error.message);
-
   return updated;
 }
 

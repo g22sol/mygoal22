@@ -19,6 +19,7 @@ type SupersetOption = (typeof SUPERSET_OPTIONS)[number];
 type Props = {
   draft: ExerciseTemplate[];
   saved: boolean;
+  activeDay: string;
   onDraftChange: (
     id: number,
     field: keyof ExerciseTemplate,
@@ -49,13 +50,15 @@ function Stepper({
       <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold mb-1.5 px-1">
         {label}
       </p>
+
       <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden">
         <button
           onClick={() => onChange(Math.max(min, value - 1))}
-          className="w-9 h-10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all text-lg font-black flex-shrink-0 active:scale-90"
+          className="w-8 h-10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all text-lg font-black flex-shrink-0 active:scale-90"
         >
           −
         </button>
+
         <input
           type="number"
           min={min}
@@ -64,8 +67,9 @@ function Stepper({
             const v = parseInt(e.target.value, 10);
             if (!isNaN(v)) onChange(Math.max(min, v));
           }}
-          className="flex-1 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-2"
+          className="w-10 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-2"
         />
+
         <button
           onClick={() => onChange(value + 1)}
           className="w-9 h-10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all text-lg font-black flex-shrink-0 active:scale-90"
@@ -82,6 +86,7 @@ function Stepper({
 export default function TemplateEditor({
   draft,
   saved,
+  activeDay,
   onDraftChange,
   onAdd,
   onRemove,
@@ -100,11 +105,15 @@ export default function TemplateEditor({
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
+
         <div className="flex-1">
           <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold">
             Workout Template
           </p>
-          <h1 className="text-lg font-black tracking-tight">Manage Exercises</h1>
+
+          <h1 className="text-lg font-black tracking-tight">
+            {activeDay} — Edit Exercises
+          </h1>
         </div>
       </header>
 
@@ -167,6 +176,7 @@ export default function TemplateEditor({
                     >
                       <ChevronUp className="w-3.5 h-3.5" />
                     </button>
+
                     <button
                       onClick={() => onReorder(index, index + 1)}
                       disabled={isLast}
@@ -211,6 +221,7 @@ export default function TemplateEditor({
                     value={ex.sets}
                     onChange={(v) => onDraftChange(ex.id, "sets", v)}
                   />
+
                   <Stepper
                     label="Reps"
                     value={ex.reps}
@@ -226,26 +237,33 @@ export default function TemplateEditor({
                       Superset Group
                     </p>
                   </div>
+
                   <div className="flex gap-1.5">
                     {SUPERSET_OPTIONS.map((opt) => {
                       const active = currentGroup === opt;
+
                       const colorMap: Record<SupersetOption, string> = {
                         None: active
                           ? "bg-white/10 text-white border-white/20"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-neutral-400",
+
                         A: active
                           ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-purple-400",
+
                         B: active
                           ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-sky-400",
+
                         C: active
                           ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-emerald-400",
+
                         D: active
                           ? "bg-pink-500/20 text-pink-300 border-pink-500/40"
                           : "bg-white/5 text-neutral-600 border-transparent hover:text-pink-400",
                       };
+
                       return (
                         <button
                           key={opt}
@@ -303,6 +321,7 @@ export default function TemplateEditor({
             </>
           )}
         </button>
+
         <button
           onClick={onBack}
           className="w-full bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.98] transition-all rounded-xl py-3.5 font-black text-sm flex items-center justify-center gap-2 text-neutral-400"

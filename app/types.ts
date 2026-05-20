@@ -3,7 +3,7 @@ export type ExerciseTemplate = {
   name: string;
   sets: number;
   reps: number;
-  supersetGroup?: string | null; // "A" | "B" | "C" | null
+  supersetGroup?: string | null;
 };
 
 export type Exercise = ExerciseTemplate & {
@@ -67,8 +67,6 @@ export type ViewName =
   | "sprint"
   | "progress";
 
-// ── Weekly schedule types ──────────────────────────────────────────────────────
-
 export type WeekDay =
   | "Mon"
   | "Tue"
@@ -82,4 +80,20 @@ export type ScheduleDay = {
   day: WeekDay;
   workout: string;
   active: boolean;
+};
+
+// ── Per-day template ───────────────────────────────────────────────────────────
+
+/** One day's exercise list. */
+export type DayTemplate = {
+  day: WeekDay;
+  exercises: ExerciseTemplate[];
+};
+
+/**
+ * The shape stored in Supabase / localStorage under TEMPLATE_KEY.
+ * Replaces the old bare ExerciseTemplate[].
+ */
+export type WeeklyTemplate = {
+  days: DayTemplate[];
 };

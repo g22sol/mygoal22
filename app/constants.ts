@@ -7,19 +7,79 @@ import {
   Activity,
   TrendingUp,
 } from "lucide-react";
-import type { ExerciseTemplate, SprintEntry, SprintField, ScheduleDay } from "./types";
+import type {
+  ExerciseTemplate,
+  SprintEntry,
+  SprintField,
+  ScheduleDay,
+  WeekDay,
+  WeeklyTemplate,
+} from "./types";
 
 export const TEMPLATE_KEY = "workout_template";
 export const HISTORY_KEY = "workout_history";
 export const SPRINT_KEY = "sprint_history";
 export const SCHEDULE_KEY = "workout_schedule";
 
-export const DEFAULT_TEMPLATE: ExerciseTemplate[] = [
+// ── Default per-day exercises ──────────────────────────────────────────────────
+
+const defaultLowers: ExerciseTemplate[] = [
   { id: 1, name: "Front Squat", sets: 4, reps: 6 },
   { id: 2, name: "Romanian Deadlift", sets: 3, reps: 8 },
   { id: 3, name: "Bulgarian Split Squat", sets: 3, reps: 8 },
   { id: 4, name: "Calf Raises", sets: 4, reps: 15 },
 ];
+
+const defaultUpper: ExerciseTemplate[] = [
+  { id: 1, name: "Bench Press", sets: 4, reps: 6 },
+  { id: 2, name: "Barbell Row", sets: 4, reps: 6 },
+  { id: 3, name: "Overhead Press", sets: 3, reps: 8 },
+  { id: 4, name: "Pull-ups", sets: 3, reps: 8 },
+];
+
+const defaultPlyoPower: ExerciseTemplate[] = [
+  { id: 1, name: "Box Jumps", sets: 4, reps: 5 },
+  { id: 2, name: "Depth Jumps", sets: 3, reps: 5 },
+  { id: 3, name: "Power Clean", sets: 4, reps: 4 },
+  { id: 4, name: "Broad Jumps", sets: 3, reps: 5 },
+];
+
+const defaultUpperFitness: ExerciseTemplate[] = [
+  { id: 1, name: "Bench Press", sets: 4, reps: 8 },
+  { id: 2, name: "Cable Row", sets: 4, reps: 10 },
+  { id: 3, name: "Lateral Raises", sets: 3, reps: 12 },
+  { id: 4, name: "Assault Bike", sets: 5, reps: 1 },
+];
+
+const defaultTopSpeed: ExerciseTemplate[] = [
+  { id: 1, name: "Flying 20m", sets: 6, reps: 1 },
+  { id: 2, name: "Top Speed Run 30m", sets: 4, reps: 1 },
+  { id: 3, name: "Wicket Runs", sets: 4, reps: 1 },
+];
+
+const defaultRecovery: ExerciseTemplate[] = [
+  { id: 1, name: "Foam Rolling", sets: 1, reps: 1 },
+  { id: 2, name: "Hip Flexor Stretch", sets: 3, reps: 1 },
+  { id: 3, name: "Hamstring Stretch", sets: 3, reps: 1 },
+];
+
+export const DEFAULT_WEEKLY_TEMPLATE: WeeklyTemplate = {
+  days: [
+    { day: "Mon", exercises: defaultLowers },
+    { day: "Tue", exercises: defaultUpper },
+    { day: "Wed", exercises: defaultRecovery },
+    { day: "Thu", exercises: defaultPlyoPower },
+    { day: "Fri", exercises: defaultUpperFitness },
+    { day: "Sat", exercises: defaultTopSpeed },
+    { day: "Sun", exercises: defaultRecovery },
+  ],
+};
+
+/**
+ * Legacy fallback: a single flat list used before per-day templates existed.
+ * Kept only for the migration path in storage.ts.
+ */
+export const LEGACY_DEFAULT_TEMPLATE: ExerciseTemplate[] = defaultLowers;
 
 export const SPRINT_FIELDS: SprintField[] = [
   { key: "topSpeed", label: "Top Speed", unit: "km/h", icon: Wind },
@@ -53,5 +113,5 @@ export const DEFAULT_SCHEDULE: ScheduleDay[] = [
   { day: "Sun", workout: "Recovery", active: false },
 ];
 
-// Legacy static export kept for any files that still import WEEK_SCHEDULE
+// Alias for any files that still import WEEK_SCHEDULE
 export const WEEK_SCHEDULE = DEFAULT_SCHEDULE;
